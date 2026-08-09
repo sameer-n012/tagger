@@ -1,0 +1,17 @@
+<ul class="missing-list" id="missing-list">
+  {% for m in missing_files %}
+    <li class="missing-row">
+      <div>
+        <div class="missing-path">{{ m.relative_path }}</div>
+        <div class="missing-since">missing since {{ m.missing_since }}</div>
+      </div>
+      <form action="/sources/{{ source.id }}/files/{{ m.id }}/purge" method="post"
+            hx-post="/sources/{{ source.id }}/files/{{ m.id }}/purge"
+            hx-target="#missing-list" hx-swap="outerHTML" class="inline-form">
+        <button type="submit" class="btn btn-danger">Purge</button>
+      </form>
+    </li>
+  {% else %}
+    <li class="hint">Nothing missing. Every tracked file is accounted for.</li>
+  {% endfor %}
+</ul>

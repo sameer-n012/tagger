@@ -17,6 +17,14 @@ router = APIRouter(prefix="/sources/{source_id}/tags", tags=["tags"])
 Conn = Annotated[sqlite3.Connection, Depends(get_conn)]
 
 
+def _safe_redirect(next_url: str, default: str) -> str:
+    """Only ever redirect to a same-origin path, never an attacker-supplied
+    absolute/protocol-relative URL (open-redirect guard)."""
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        return next_url
+    return default
+
+
 @router.get("")
 def list_tags_page(request: Request, source_id: str, conn: Conn):
     source = get_source_or_404(source_id)
@@ -36,11 +44,13 @@ def list_tags_page(request: Request, source_id: str, conn: Conn):
 
 
 @router.post("")
-def create_tag(source_id: str, conn: Conn, name: str = Form(...)):
+def create_tag(source_id: str, conn: Conn, name: str = Form(...), next: str = Form("")):
     name = name.strip()
     if name and tags_module.get_tag_by_name(conn, name) is None:
         tags_module.create_tag(conn, name)
-    return RedirectResponse(url=f"/sources/{source_id}/tags", status_code=303)
+    return RedirectResponse(
+        url=_safe_redirect(next, f"/sources/{source_id}/tags"), status_code=303
+    )
 
 
 @router.post("/{tag_id}/rename")

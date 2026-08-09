@@ -1,0 +1,47 @@
+<div class="record">
+  <div class="record-preview">
+    {% if is_image %}
+      <img src="/sources/{{ source.id }}/files/{{ file.id }}/raw" alt="{{ file.relative_path }}">
+    {% else %}
+      <span class="file-glyph">📄</span>
+    {% endif %}
+  </div>
+
+  <div class="record-title">{{ file.relative_path.split('/')[-1] }}</div>
+
+  <div class="record-meta">
+    <div class="record-meta-row"><span class="label">Path</span><span class="value">{{ file.relative_path }}</span></div>
+    <div class="record-meta-row"><span class="label">Size</span><span class="value">{{ "%.1f"|format(file.size_bytes / 1024) }} KB</span></div>
+    <div class="record-meta-row"><span class="label">Modified</span><span class="value">{{ file.mtime }}</span></div>
+  </div>
+
+  <div>
+    <div class="eyebrow">Tags</div>
+    <div class="record-tags">
+      {% for tag in tags %}
+        <span class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}">
+          {{ tag.name }}
+          <form action="/sources/{{ source.id }}/files/{{ file.id }}/tags/{{ tag.id }}/delete" method="post"
+                hx-post="/sources/{{ source.id }}/files/{{ file.id }}/tags/{{ tag.id }}/delete"
+                hx-target="#right-panel" hx-swap="innerHTML" class="inline-form">
+            <input type="hidden" name="path" value="{{ path }}">
+            <input type="hidden" name="q" value="{{ q }}">
+            <button type="submit" class="chip-remove" title="Remove tag">&times;</button>
+          </form>
+        </span>
+      {% else %}
+        <span class="hint">Nothing tagged yet.</span>
+      {% endfor %}
+    </div>
+    <form action="/sources/{{ source.id }}/files/{{ file.id }}/tags" method="post"
+          hx-post="/sources/{{ source.id }}/files/{{ file.id }}/tags"
+          hx-target="#right-panel" hx-swap="innerHTML" class="add-tag-form">
+      <input type="hidden" name="path" value="{{ path }}">
+      <input type="hidden" name="q" value="{{ q }}">
+      <input type="text" name="tag_name" list="known-tags" placeholder="+ tag" required>
+      <button type="submit" class="btn">Add</button>
+    </form>
+  </div>
+
+  <a class="btn" href="/sources/{{ source.id }}/files/{{ file.id }}/raw" target="_blank" rel="noopener">Open file</a>
+</div>

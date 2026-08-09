@@ -1,108 +1,165 @@
 {% extends "base.html" %}
 {% block title %}{{ source.display_name }} — tagger{% endblock %}
 
-{% block topbar_extra %}
-  <span class="source-name">{{ source.display_name }}</span>
-  <form method="get" action="/sources/{{ source.id }}/browse" class="search-form">
-    <input type="text" name="q" value="{{ q }}"
-           placeholder='Search tags: vacation and (2023 or 2024) and not private'>
-    <button type="submit">Search</button>
-    {% if q %}
-      <a class="clear-search" href="/sources/{{ source.id }}/browse">Clear</a>
-    {% endif %}
-  </form>
-  <form method="post" action="/sources/{{ source.id }}/rescan" class="inline-form">
-    <button type="submit">Rescan</button>
-  </form>
-  <a href="/sources/{{ source.id }}/tags">Manage tags</a>
-{% endblock %}
+{% block body %}
+<div class="workspace">
+  <header class="topbar">
+    <a class="brand" href="/sources">tagger</a>
 
-{% block content %}
-  {% if not q %}
-    <nav class="breadcrumbs">
-      <a href="/sources/{{ source.id }}/browse">{{ source.display_name }}</a>
-      {% for name, crumb_path in breadcrumbs %}
-        / <a href="/sources/{{ source.id }}/browse?path={{ crumb_path }}">{{ name }}</a>
+    <select class="source-select"
+            onchange="if(this.value==='__manage__'){location.href='/sources'}else{location.href='/sources/'+this.value+'/browse'}">
+      {% for s in sources %}
+        <option value="{{ s.id }}" {% if s.id == source.id %}selected{% endif %}>{{ s.display_name }}</option>
       {% endfor %}
-    </nav>
-  {% else %}
-    <p class="hint">Search results for <code>{{ q }}</code></p>
-  {% endif %}
+      <option value="__manage__">Manage sources…</option>
+    </select>
 
-  {% if search_error %}
-    <p class="error">{{ search_error }}</p>
-  {% endif %}
+    <form method="get" action="/sources/{{ source.id }}/browse" class="search-form">
+      <input type="search" name="q" value="{{ q }}"
+             placeholder='vacation and (2023 or 2024) and not private'>
+    </form>
 
-  <datalist id="known-tags">
-    {% for tag in all_tags %}
-      <option value="{{ tag.name }}">{% if tag.is_supertag %} (supertag){% endif %}</option>
-    {% endfor %}
-  </datalist>
+    <button type="button" class="icon-btn" title="Missing files"
+            onclick="document.getElementById('missing-dialog').showModal()">
+      ⚠{% if missing_files %}<span class="badge">{{ missing_files|length }}</span>{% endif %}
+    </button>
 
-  <form id="bulk-form" method="post" action="/sources/{{ source.id }}/bulk-tag" class="bulk-bar">
-    <input type="hidden" name="path" value="{{ path }}">
-    <input type="hidden" name="q" value="{{ q }}">
-    <label class="select-all">
-      <input type="checkbox" onclick="document.querySelectorAll('.file-checkbox').forEach(c => c.checked = this.checked)">
-      Select all
-    </label>
-    <input type="text" name="tag_names" list="known-tags" placeholder="tag1, tag2, ...">
-    <button type="submit" name="action" value="add">Add tags to selected</button>
-    <button type="submit" name="action" value="remove">Remove tags from selected</button>
-  </form>
+    <form method="post" action="/sources/{{ source.id }}/rescan" class="inline-form">
+      <button type="submit" class="icon-btn" title="Rescan">⟳</button>
+    </form>
 
-  {% if not q and subdirs %}
-    <ul class="folder-list">
-      {% for name in subdirs %}
-        {% set child_path = (path ~ '/' ~ name) if path else name %}
+    <a class="icon-btn" href="/sources/{{ source.id }}/tags" title="Manage tags">🏷</a>
+  </header>
+
+  <aside class="panel-left">
+    <div class="eyebrow">Index</div>
+    <input type="text" class="tag-filter" placeholder="Filter tags…"
+           oninput="taggerFilterTags(this.value)">
+    <ul class="tag-index-list" id="tag-index-list">
+      {% for tag in all_tags %}
         <li>
-          <a class="folder-link" href="/sources/{{ source.id }}/browse?path={{ child_path }}">
-            📁 {{ name }}
-          </a>
+          <a class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}"
+             data-name="{{ tag.name|lower }}"
+             href="/sources/{{ source.id }}/browse?q={{ tag.name }}">{{ tag.name }}</a>
         </li>
+      {% else %}
+        <li class="hint">No tags yet.</li>
       {% endfor %}
     </ul>
-  {% endif %}
+    <div class="panel-left-footer">
+      <form method="post" action="/sources/{{ source.id }}/tags" class="new-tag-form">
+        <input type="hidden" name="next" value="/sources/{{ source.id }}/browse">
+        <input type="text" name="name" placeholder="New tag…" required>
+        <button type="submit" class="btn">Add</button>
+      </form>
+    </div>
+  </aside>
 
-  {% if files %}
-    <table class="file-table">
-      <thead>
-        <tr>
-          <th></th>
-          <th>Name</th>
-          <th>Size</th>
-          <th>Tags</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for entry in files %}
-          {% set file = entry.file %}
-          <tr>
-            <td><input type="checkbox" class="file-checkbox" name="file_ids" value="{{ file.id }}" form="bulk-form"></td>
-            <td class="file-name">📄 {{ file.relative_path if q else file.relative_path.split('/')[-1] }}</td>
-            <td class="file-size">{{ "%.1f"|format(file.size_bytes / 1024) }} KB</td>
-            <td class="file-tags">
-              {% for tag in entry.tags %}
-                <span class="tag-chip">
-                  {{ tag.name }}
-                  <form method="post" action="/sources/{{ source.id }}/files/{{ file.id }}/tags/{{ tag.id }}/delete" class="inline-form">
-                    <input type="hidden" name="path" value="{{ path }}">
-                    <input type="hidden" name="q" value="{{ q }}">
-                    <button type="submit" class="chip-remove" title="Remove tag">&times;</button>
-                  </form>
-                </span>
-              {% endfor %}
-              <form method="post" action="/sources/{{ source.id }}/files/{{ file.id }}/tags" class="inline-form add-tag-form">
-                <input type="hidden" name="path" value="{{ path }}">
-                <input type="hidden" name="q" value="{{ q }}">
-                <input type="text" name="tag_name" list="known-tags" placeholder="+ tag" size="10">
-              </form>
-            </td>
-          </tr>
+  <main class="panel-main">
+    {% if not q %}
+      <nav class="breadcrumbs">
+        <a href="/sources/{{ source.id }}/browse">{{ source.display_name }}</a>
+        {% for name, crumb_path in breadcrumbs %}
+          <span class="sep">/</span><a href="/sources/{{ source.id }}/browse?path={{ crumb_path }}">{{ name }}</a>
         {% endfor %}
-      </tbody>
-    </table>
-  {% elif not subdirs %}
-    <p class="hint">{% if q %}No files match this search.{% else %}This folder is empty.{% endif %}</p>
-  {% endif %}
+      </nav>
+    {% else %}
+      <p class="hint">Results for <code>{{ q }}</code></p>
+    {% endif %}
+
+    {% if search_error %}
+      <p class="error-banner">Can't parse that search: {{ search_error }}</p>
+    {% endif %}
+
+    <datalist id="known-tags">
+      {% for tag in all_tags %}
+        <option value="{{ tag.name }}">
+      {% endfor %}
+    </datalist>
+
+    <form id="bulk-form" method="post" action="/sources/{{ source.id }}/bulk-tag" class="bulk-bar">
+      <input type="hidden" name="path" value="{{ path }}">
+      <input type="hidden" name="q" value="{{ q }}">
+      <label class="select-all">
+        <input type="checkbox"
+               onclick="document.querySelectorAll('.file-checkbox').forEach(c => c.checked = this.checked)">
+        Select all
+      </label>
+      <input type="text" name="tag_names" list="known-tags" placeholder="tag1, tag2, ...">
+      <button type="submit" name="action" value="add" class="btn">Add to selected</button>
+      <button type="submit" name="action" value="remove" class="btn">Remove from selected</button>
+    </form>
+
+    {% if not q and subdirs %}
+      <ul class="folder-list">
+        {% for name in subdirs %}
+          {% set child_path = (path ~ '/' ~ name) if path else name %}
+          <li>
+            <a class="folder-link" href="/sources/{{ source.id }}/browse?path={{ child_path }}">
+              <span class="folder-tab"></span>{{ name }}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if files %}
+      <table class="file-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Name</th>
+            <th>Size</th>
+            <th>Tags</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in files %}
+            {% set file = entry.file %}
+            <tr>
+              <td><input type="checkbox" class="file-checkbox" name="file_ids" value="{{ file.id }}" form="bulk-form"></td>
+              <td class="file-name"
+                  hx-get="/sources/{{ source.id }}/files/{{ file.id }}/preview?path={{ path }}&q={{ q }}"
+                  hx-target="#right-panel" hx-swap="innerHTML">
+                {{ "🖼" if entry.is_image else "📄" }}
+                {{ file.relative_path if q else file.relative_path.split('/')[-1] }}
+              </td>
+              <td class="file-size">{{ "%.1f"|format(file.size_bytes / 1024) }} KB</td>
+              <td class="file-tags">
+                {% for tag in entry.tags %}
+                  <span class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}">{{ tag.name }}</span>
+                {% endfor %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% elif not subdirs %}
+      <p class="hint">{% if q %}No files match this search.{% else %}This folder is empty.{% endif %}</p>
+    {% endif %}
+  </main>
+
+  <aside class="panel-right" id="right-panel">
+    <p class="record-empty">Select a file to view its record.</p>
+  </aside>
+</div>
+
+<dialog id="missing-dialog">
+  <div class="dialog-header">
+    <strong>Missing files</strong>
+    <button type="button" class="btn btn-quiet" onclick="document.getElementById('missing-dialog').close()">Close</button>
+  </div>
+  <div class="dialog-body">
+    {% include "_missing_list.html" %}
+  </div>
+</dialog>
+
+<script>
+  function taggerFilterTags(query) {
+    var q = query.trim().toLowerCase();
+    document.querySelectorAll('#tag-index-list .tag-chip').forEach(function (el) {
+      el.parentElement.hidden = Boolean(q) && el.dataset.name.indexOf(q) === -1;
+    });
+  }
+</script>
 {% endblock %}

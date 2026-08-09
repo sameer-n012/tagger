@@ -1,22 +1,32 @@
-"""File-explorer browsing, search, and (bulk) tag application on files."""
+"""File-explorer browsing, search, (bulk) tag application, previewing, and
+missing-file bookkeeping."""
 
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 from typing import Annotated
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.responses import FileResponse, RedirectResponse
 
+from tagger import config
 from tagger import search as search_module
 from tagger import tags as tags_module
+from tagger.config import SourceConfig
 from tagger.routes.deps import get_conn, get_source_or_404
 from tagger.templating import templates
 
 router = APIRouter(prefix="/sources/{source_id}", tags=["files"])
 
 Conn = Annotated[sqlite3.Connection, Depends(get_conn)]
+
+_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"}
+
+
+def _is_image(relative_path: str) -> bool:
+    return Path(relative_path).suffix.lower() in _IMAGE_EXTENSIONS
 
 
 def _breadcrumbs(path: str) -> list[tuple[str, str]]:
@@ -79,6 +89,19 @@ def _search_files(conn: sqlite3.Connection, query: str) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def _missing_files(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM files WHERE status = 'missing' ORDER BY missing_since"
+    ).fetchall()
+
+
+def _get_file_or_404(conn: sqlite3.Connection, file_id: int) -> sqlite3.Row:
+    row = conn.execute("SELECT * FROM files WHERE id = ?", (file_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Unknown file")
+    return row
+
+
 @router.get("/browse")
 def browse(
     request: Request,
@@ -103,7 +126,12 @@ def browse(
         subdirs, file_rows = _list_directory(conn, path)
 
     files_view = [
-        {"file": row, "tags": tags_module.tags_for_file(conn, row["id"])} for row in file_rows
+        {
+            "file": row,
+            "tags": tags_module.tags_for_file(conn, row["id"]),
+            "is_image": _is_image(row["relative_path"]),
+        }
+        for row in file_rows
     ]
     all_tags = tags_module.list_tags(conn)
 
@@ -112,11 +140,13 @@ def browse(
         "browse.html",
         {
             "source": source,
+            "sources": config.load_config().sources,
             "path": path,
             "breadcrumbs": _breadcrumbs(path),
             "subdirs": subdirs,
             "files": files_view,
             "all_tags": all_tags,
+            "missing_files": _missing_files(conn),
             "q": q,
             "search_error": search_error,
         },
@@ -129,6 +159,77 @@ def _back_to_browse_url(source_id: str, path: str, q: str) -> str:
     if path:
         return f"/sources/{source_id}/browse?path={quote(path)}"
     return f"/sources/{source_id}/browse"
+
+
+def _wants_partial(request: Request) -> bool:
+    return request.headers.get("hx-request") == "true"
+
+
+def _render_file_panel(
+    request: Request,
+    source: SourceConfig,
+    conn: sqlite3.Connection,
+    file_id: int,
+    path: str,
+    q: str,
+):
+    file_row = _get_file_or_404(conn, file_id)
+    return templates.TemplateResponse(
+        request,
+        "_file_panel.html",
+        {
+            "source": source,
+            "file": file_row,
+            "tags": tags_module.tags_for_file(conn, file_id),
+            "is_image": _is_image(file_row["relative_path"]),
+            "path": path,
+            "q": q,
+        },
+    )
+
+
+@router.get("/files/{file_id}/preview")
+def file_preview(
+    request: Request,
+    source_id: str,
+    file_id: int,
+    conn: Conn,
+    path: str = "",
+    q: str = "",
+):
+    source = get_source_or_404(source_id)
+    return _render_file_panel(request, source, conn, file_id, path, q)
+
+
+@router.get("/files/{file_id}/raw")
+def file_raw(source_id: str, file_id: int, conn: Conn):
+    source = get_source_or_404(source_id)
+    file_row = _get_file_or_404(conn, file_id)
+    if file_row["status"] != "active":
+        raise HTTPException(status_code=404, detail="File is missing on disk")
+
+    root = Path(source.path).resolve()
+    candidate = (root / file_row["relative_path"]).resolve()
+    if not candidate.is_relative_to(root):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    if not candidate.is_file():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    return FileResponse(candidate)
+
+
+@router.post("/files/{file_id}/purge")
+def purge_file(request: Request, source_id: str, file_id: int, conn: Conn):
+    source = get_source_or_404(source_id)
+    row = conn.execute("SELECT status FROM files WHERE id = ?", (file_id,)).fetchone()
+    if row is not None and row["status"] == "missing":
+        conn.execute("DELETE FROM files WHERE id = ?", (file_id,))
+        conn.commit()
+    return templates.TemplateResponse(
+        request,
+        "_missing_list.html",
+        {"source": source, "missing_files": _missing_files(conn)},
+    )
 
 
 @router.post("/bulk-tag")
@@ -162,6 +263,7 @@ async def bulk_tag(source_id: str, request: Request, conn: Conn):
 
 @router.post("/files/{file_id}/tags")
 def add_file_tag(
+    request: Request,
     source_id: str,
     file_id: int,
     conn: Conn,
@@ -169,17 +271,22 @@ def add_file_tag(
     path: str = Form(""),
     q: str = Form(""),
 ):
+    source = get_source_or_404(source_id)
     name = tag_name.strip()
     if name:
         tag = tags_module.get_tag_by_name(conn, name)
         if tag is None:
             tag = tags_module.create_tag(conn, name)
         tags_module.tag_files(conn, [file_id], [tag.id])
+
+    if _wants_partial(request):
+        return _render_file_panel(request, source, conn, file_id, path, q)
     return RedirectResponse(url=_back_to_browse_url(source_id, path, q), status_code=303)
 
 
 @router.post("/files/{file_id}/tags/{tag_id}/delete")
 def remove_file_tag(
+    request: Request,
     source_id: str,
     file_id: int,
     tag_id: int,
@@ -187,5 +294,9 @@ def remove_file_tag(
     path: str = Form(""),
     q: str = Form(""),
 ):
+    source = get_source_or_404(source_id)
     tags_module.untag_files(conn, [file_id], [tag_id])
+
+    if _wants_partial(request):
+        return _render_file_panel(request, source, conn, file_id, path, q)
     return RedirectResponse(url=_back_to_browse_url(source_id, path, q), status_code=303)
