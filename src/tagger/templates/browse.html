@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}{{ source.display_name }} — tagger{% endblock %}
+
+{% block topbar_extra %}
+  <span class="source-name">{{ source.display_name }}</span>
+  <form method="get" action="/sources/{{ source.id }}/browse" class="search-form">
+    <input type="text" name="q" value="{{ q }}"
+           placeholder='Search tags: vacation and (2023 or 2024) and not private'>
+    <button type="submit">Search</button>
+    {% if q %}
+      <a class="clear-search" href="/sources/{{ source.id }}/browse">Clear</a>
+    {% endif %}
+  </form>
+  <form method="post" action="/sources/{{ source.id }}/rescan" class="inline-form">
+    <button type="submit">Rescan</button>
+  </form>
+  <a href="/sources/{{ source.id }}/tags">Manage tags</a>
+{% endblock %}
+
+{% block content %}
+  {% if not q %}
+    <nav class="breadcrumbs">
+      <a href="/sources/{{ source.id }}/browse">{{ source.display_name }}</a>
+      {% for name, crumb_path in breadcrumbs %}
+        / <a href="/sources/{{ source.id }}/browse?path={{ crumb_path }}">{{ name }}</a>
+      {% endfor %}
+    </nav>
+  {% else %}
+    <p class="hint">Search results for <code>{{ q }}</code></p>
+  {% endif %}
+
+  {% if search_error %}
+    <p class="error">{{ search_error }}</p>
+  {% endif %}
+
+  <datalist id="known-tags">
+    {% for tag in all_tags %}
+      <option value="{{ tag.name }}">{% if tag.is_supertag %} (supertag){% endif %}</option>
+    {% endfor %}
+  </datalist>
+
+  <form id="bulk-form" method="post" action="/sources/{{ source.id }}/bulk-tag" class="bulk-bar">
+    <input type="hidden" name="path" value="{{ path }}">
+    <input type="hidden" name="q" value="{{ q }}">
+    <label class="select-all">
+      <input type="checkbox" onclick="document.querySelectorAll('.file-checkbox').forEach(c => c.checked = this.checked)">
+      Select all
+    </label>
+    <input type="text" name="tag_names" list="known-tags" placeholder="tag1, tag2, ...">
+    <button type="submit" name="action" value="add">Add tags to selected</button>
+    <button type="submit" name="action" value="remove">Remove tags from selected</button>
+  </form>
+
+  {% if not q and subdirs %}
+    <ul class="folder-list">
+      {% for name in subdirs %}
+        {% set child_path = (path ~ '/' ~ name) if path else name %}
+        <li>
+          <a class="folder-link" href="/sources/{{ source.id }}/browse?path={{ child_path }}">
+            📁 {{ name }}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if files %}
+    <table class="file-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Name</th>
+          <th>Size</th>
+          <th>Tags</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in files %}
+          {% set file = entry.file %}
+          <tr>
+            <td><input type="checkbox" class="file-checkbox" name="file_ids" value="{{ file.id }}" form="bulk-form"></td>
+            <td class="file-name">📄 {{ file.relative_path if q else file.relative_path.split('/')[-1] }}</td>
+            <td class="file-size">{{ "%.1f"|format(file.size_bytes / 1024) }} KB</td>
+            <td class="file-tags">
+              {% for tag in entry.tags %}
+                <span class="tag-chip">
+                  {{ tag.name }}
+                  <form method="post" action="/sources/{{ source.id }}/files/{{ file.id }}/tags/{{ tag.id }}/delete" class="inline-form">
+                    <input type="hidden" name="path" value="{{ path }}">
+                    <input type="hidden" name="q" value="{{ q }}">
+                    <button type="submit" class="chip-remove" title="Remove tag">&times;</button>
+                  </form>
+                </span>
+              {% endfor %}
+              <form method="post" action="/sources/{{ source.id }}/files/{{ file.id }}/tags" class="inline-form add-tag-form">
+                <input type="hidden" name="path" value="{{ path }}">
+                <input type="hidden" name="q" value="{{ q }}">
+                <input type="text" name="tag_name" list="known-tags" placeholder="+ tag" size="10">
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% elif not subdirs %}
+    <p class="hint">{% if q %}No files match this search.{% else %}This folder is empty.{% endif %}</p>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}tagger — choose a source{% endblock %}
+{% block content %}
+  <h1>Source directories</h1>
+  <p class="hint">Pick a directory to browse and tag, or add a new one.</p>
+
+  {% if error %}
+    <p class="error">{{ error }}</p>
+  {% endif %}
+
+  {% if sources %}
+    <ul class="source-list">
+      {% for source in sources %}
+        <li class="source-row">
+          <a class="source-link" href="/sources/{{ source.id }}/browse">
+            <strong>{{ source.display_name }}</strong>
+            <span class="source-path">{{ source.path }}</span>
+          </a>
+          <form method="post" action="/sources/{{ source.id }}/delete" class="inline-form">
+            <button type="submit" class="danger" title="Remove from tagger (keeps the directory itself untouched)">
+              Remove
+            </button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="hint">No source directories yet.</p>
+  {% endif %}
+
+  <h2>Add a source directory</h2>
+  <form method="post" action="/sources" class="stacked-form">
+    <label>
+      Path
+      <input type="text" name="path" placeholder="/absolute/path/to/directory" required>
+    </label>
+    <label>
+      Display name (optional)
+      <input type="text" name="display_name" placeholder="Defaults to the folder name">
+    </label>
+    <button type="submit">Add &amp; scan</button>
+  </form>
+{% endblock %}

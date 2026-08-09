@@ -73,9 +73,13 @@ The core inventory table: every file ever seen under this source directory.
 | `missing_since`   | TEXT    | ISO 8601, nullable. Set when status transitions to `missing`.          |
 
 Indexes:
-- `UNIQUE(relative_path)` — a source directory can't have two files at the
-  same path simultaneously (only one `active` file per path at a time; when
-  a path is reused after the original was purged, that's simply a new row).
+- `UNIQUE(relative_path) WHERE status = 'active'` — a **partial** unique
+  index: only one `active` file may occupy a given path at a time. This is
+  deliberately not a plain unique index — a path can be reused by a brand
+  new file while an old row for that same path still lingers with
+  `status = 'missing'` (awaiting either a hash-match "move" or a retention
+  purge). A plain `UNIQUE(relative_path)` would make that reuse impossible
+  to insert until the stale missing row was purged.
 - `INDEX(content_hash)` — required for the move-detection matching step in a
   rescan (`new_paths` vs `missing_paths` matched by hash).
 - `INDEX(status)` — rescans filter by `status = 'active'` and cleanup

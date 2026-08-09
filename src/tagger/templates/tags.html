@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ source.display_name }} — manage tags{% endblock %}
+
+{% block topbar_extra %}
+  <span class="source-name">{{ source.display_name }}</span>
+  <a href="/sources/{{ source.id }}/browse">Back to files</a>
+{% endblock %}
+
+{% block content %}
+  <h1>Tags</h1>
+
+  <form method="post" action="/sources/{{ source.id }}/tags" class="stacked-form">
+    <label>
+      New tag name
+      <input type="text" name="name" required>
+    </label>
+    <button type="submit">Create tag</button>
+  </form>
+
+  <ul class="tag-manage-list">
+    {% for tag in tags %}
+      <li class="tag-manage-row">
+        <div class="tag-manage-header">
+          <span class="tag-chip">{{ tag.name }}{% if tag.is_supertag %} <em>(supertag)</em>{% endif %}</span>
+
+          <form method="post" action="/sources/{{ source.id }}/tags/{{ tag.id }}/rename" class="inline-form">
+            <input type="text" name="new_name" placeholder="rename to..." size="12">
+            <button type="submit">Rename</button>
+          </form>
+
+          <form method="post" action="/sources/{{ source.id }}/tags/{{ tag.id }}/delete" class="inline-form">
+            <button type="submit" class="danger">Delete</button>
+          </form>
+        </div>
+
+        <div class="supertag-members">
+          {% if tag.id in members_by_supertag %}
+            <span class="hint">Implies:</span>
+            {% for member in members_by_supertag[tag.id] %}
+              <span class="tag-chip">
+                {{ member.name }}
+                <form method="post" action="/sources/{{ source.id }}/tags/{{ tag.id }}/members/{{ member.id }}/delete" class="inline-form">
+                  <button type="submit" class="chip-remove" title="Remove from supertag">&times;</button>
+                </form>
+              </span>
+            {% endfor %}
+          {% endif %}
+          <form method="post" action="/sources/{{ source.id }}/tags/{{ tag.id }}/members" class="inline-form add-member-form">
+            <select name="member_tag_id" required>
+              <option value="" disabled selected>add implied tag...</option>
+              {% for other in tags %}
+                {% if other.id != tag.id %}
+                  <option value="{{ other.id }}">{{ other.name }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            <button type="submit">Add</button>
+          </form>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+{% endblock %}

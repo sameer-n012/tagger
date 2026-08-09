@@ -1,2 +1,4 @@
 def main() -> None:
-    print("Hello from tagger!")
+    from tagger.main import main as run
+
+    run()

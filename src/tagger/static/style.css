@@ -1,0 +1,129 @@
+:root {
+  color-scheme: light dark;
+  --border: #d9d9de;
+  --muted: #6b7280;
+  --accent: #3b5bdb;
+  --danger: #c0392b;
+  --chip-bg: #eef0f6;
+  --row-hover: #f6f7fb;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  color: #1a1a1a;
+  background: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+  body { color: #e8e8e8; background: #17181c; }
+  :root { --border: #33343a; --chip-bg: #2a2b31; --row-hover: #202127; }
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar .brand { font-weight: 700; font-size: 1.1rem; }
+.topbar .source-name { font-weight: 600; }
+
+.content { padding: 1rem 1.25rem; max-width: 1100px; }
+
+.hint, .source-path { color: var(--muted); font-size: 0.9rem; }
+.error { color: var(--danger); font-weight: 600; }
+
+.search-form { display: flex; gap: 0.4rem; flex: 1; align-items: center; }
+.search-form input[type="text"] { flex: 1; min-width: 12rem; padding: 0.3rem 0.5rem; }
+.clear-search { font-size: 0.85rem; }
+
+button, input, select {
+  font: inherit;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+}
+
+button { cursor: pointer; background: var(--chip-bg); }
+button:hover { filter: brightness(0.95); }
+button.danger { color: var(--danger); border-color: var(--danger); background: transparent; }
+
+.inline-form { display: inline-flex; gap: 0.3rem; align-items: center; margin: 0; }
+
+.stacked-form { display: flex; flex-direction: column; gap: 0.5rem; max-width: 24rem; margin: 0.75rem 0; }
+.stacked-form label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: var(--muted); }
+
+.breadcrumbs { margin-bottom: 0.75rem; font-size: 0.95rem; }
+
+.source-list, .folder-list, .tag-manage-list { list-style: none; padding: 0; margin: 0.5rem 0; }
+
+.source-row, .folder-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.source-link { display: flex; flex-direction: column; }
+
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--row-hover);
+  flex-wrap: wrap;
+}
+
+.select-all { display: flex; gap: 0.3rem; align-items: center; font-size: 0.85rem; color: var(--muted); }
+
+.folder-link { padding: 0.2rem 0; display: inline-block; }
+
+.file-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+.file-table th { text-align: left; font-size: 0.8rem; color: var(--muted); padding: 0.4rem; border-bottom: 1px solid var(--border); }
+.file-table td { padding: 0.4rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.file-table tr:hover { background: var(--row-hover); }
+.file-size { color: var(--muted); white-space: nowrap; }
+.file-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  font-size: 0.82rem;
+}
+
+.chip-remove {
+  border: none;
+  background: none;
+  padding: 0 0.1rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: var(--muted);
+}
+.chip-remove:hover { color: var(--danger); }
+
+.add-tag-form input { border: none; border-bottom: 1px dashed var(--border); background: transparent; padding: 0.1rem 0.2rem; }
+
+.tag-manage-row { padding: 0.6rem 0.25rem; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.4rem; }
+.tag-manage-header { display: flex; align-items: center; gap: 0.6rem; }
+.supertag-members { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; padding-left: 1rem; }
