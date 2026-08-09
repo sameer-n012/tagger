@@ -2,7 +2,7 @@
 {% block title %}{{ source.display_name }} — tagger{% endblock %}
 
 {% block body %}
-<div class="workspace">
+<div class="workspace" data-source-id="{{ source.id }}" data-path="{{ path }}" data-q="{{ q }}">
   <header class="topbar">
     <a class="brand" href="/sources">tagger</a>
 
@@ -28,7 +28,7 @@
       <button type="submit" class="icon-btn" title="Rescan">⟳</button>
     </form>
 
-    <a class="icon-btn" href="/sources/{{ source.id }}/tags" title="Manage tags">🏷</a>
+    <a class="icon-btn" href="/sources/{{ source.id }}/tags?path={{ path|urlencode }}&amp;q={{ q|urlencode }}" title="Manage tags">🏷</a>
   </header>
 
   <aside class="panel-left">
@@ -38,9 +38,29 @@
     <ul class="tag-index-list" id="tag-index-list">
       {% for tag in all_tags %}
         <li>
-          <a class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}"
-             data-name="{{ tag.name|lower }}"
-             href="/sources/{{ source.id }}/browse?q={{ tag.name }}">{{ tag.name }}</a>
+          <div class="tag-index-entry">
+            {% if tag.is_supertag %}
+              <button type="button" class="tag-caret" aria-expanded="false"
+                      onclick="taggerToggleSupertag(this)" title="Show implied tags">›</button>
+            {% else %}
+              <span class="tag-caret-spacer"></span>
+            {% endif %}
+            <a class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}"
+               data-name="{{ tag.name|lower }}"
+               href="/sources/{{ source.id }}/browse?q={{ tag.name }}">{{ tag.name }}</a>
+          </div>
+          {% if tag.is_supertag %}
+            <ul class="implied-sublist" hidden>
+              {% for member in members_by_supertag.get(tag.id, []) %}
+                <li>
+                  <a class="tag-chip"
+                     href="/sources/{{ source.id }}/browse?q={{ member.name }}">{{ member.name }}</a>
+                </li>
+              {% else %}
+                <li class="hint">No implied tags.</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
         </li>
       {% else %}
         <li class="hint">No tags yet.</li>
@@ -81,8 +101,7 @@
       <input type="hidden" name="path" value="{{ path }}">
       <input type="hidden" name="q" value="{{ q }}">
       <label class="select-all">
-        <input type="checkbox"
-               onclick="document.querySelectorAll('.file-checkbox').forEach(c => c.checked = this.checked)">
+        <input type="checkbox" onclick="taggerToggleSelectAll(this.checked)">
         Select all
       </label>
       <input type="text" name="tag_names" list="known-tags" placeholder="tag1, tag2, ...">
@@ -107,20 +126,17 @@
       <table class="file-table">
         <thead>
           <tr>
-            <th></th>
             <th>Name</th>
             <th>Size</th>
             <th>Tags</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="file-table-body">
           {% for entry in files %}
             {% set file = entry.file %}
-            <tr>
-              <td><input type="checkbox" class="file-checkbox" name="file_ids" value="{{ file.id }}" form="bulk-form"></td>
-              <td class="file-name"
-                  hx-get="/sources/{{ source.id }}/files/{{ file.id }}/preview?path={{ path }}&q={{ q }}"
-                  hx-target="#right-panel" hx-swap="innerHTML">
+            <tr class="file-row" data-file-id="{{ file.id }}" data-index="{{ loop.index0 }}"
+                onclick="taggerHandleRowClick(event, this)">
+              <td class="file-name">
                 {{ "🖼" if entry.is_image else "📄" }}
                 {{ file.relative_path if q else file.relative_path.split('/')[-1] }}
               </td>
@@ -157,9 +173,99 @@
 <script>
   function taggerFilterTags(query) {
     var q = query.trim().toLowerCase();
-    document.querySelectorAll('#tag-index-list .tag-chip').forEach(function (el) {
-      el.parentElement.hidden = Boolean(q) && el.dataset.name.indexOf(q) === -1;
+    document.querySelectorAll('#tag-index-list > li').forEach(function (li) {
+      var chip = li.querySelector('.tag-index-entry > .tag-chip');
+      var name = chip ? chip.dataset.name : '';
+      li.hidden = Boolean(q) && name.indexOf(q) === -1;
     });
   }
+
+  function taggerToggleSupertag(btn) {
+    var li = btn.closest('li');
+    var sublist = li.querySelector('.implied-sublist');
+    var expanded = btn.getAttribute('aria-expanded') === 'true';
+    btn.setAttribute('aria-expanded', String(!expanded));
+    if (sublist) sublist.hidden = expanded;
+  }
+
+  (function () {
+    var workspace = document.querySelector('.workspace');
+    var sourceId = workspace.dataset.sourceId;
+    var currentPath = workspace.dataset.path;
+    var currentQuery = workspace.dataset.q;
+    var fileOrder = Array.prototype.map.call(
+      document.querySelectorAll('#file-table-body .file-row'),
+      function (row) { return Number(row.dataset.fileId); }
+    );
+
+    var selectedIds = new Set();
+    var anchorIndex = null;
+
+    function renderSelection() {
+      document.querySelectorAll('#file-table-body .file-row').forEach(function (row) {
+        row.classList.toggle('is-selected', selectedIds.has(Number(row.dataset.fileId)));
+      });
+
+      var rightPanel = document.getElementById('right-panel');
+      if (selectedIds.size === 0) {
+        rightPanel.innerHTML = '<p class="record-empty">Select a file to view its record.</p>';
+      } else if (selectedIds.size === 1) {
+        var fileId = selectedIds.values().next().value;
+        var url = '/sources/' + sourceId + '/files/' + fileId + '/preview'
+          + '?path=' + encodeURIComponent(currentPath) + '&q=' + encodeURIComponent(currentQuery);
+        htmx.ajax('GET', url, { target: '#right-panel', swap: 'innerHTML' });
+      } else {
+        rightPanel.innerHTML = '<p class="record-empty">' + selectedIds.size + ' files selected.</p>';
+      }
+    }
+
+    window.taggerHandleRowClick = function (event, row) {
+      var id = Number(row.dataset.fileId);
+      var index = Number(row.dataset.index);
+
+      if (event.shiftKey && anchorIndex !== null) {
+        var lo = Math.min(anchorIndex, index);
+        var hi = Math.max(anchorIndex, index);
+        selectedIds.clear();
+        for (var i = lo; i <= hi; i++) {
+          if (fileOrder[i] !== undefined) selectedIds.add(fileOrder[i]);
+        }
+      } else if (event.metaKey || event.ctrlKey) {
+        if (selectedIds.has(id)) {
+          selectedIds.delete(id);
+        } else {
+          selectedIds.add(id);
+        }
+        anchorIndex = index;
+      } else {
+        selectedIds.clear();
+        selectedIds.add(id);
+        anchorIndex = index;
+      }
+      renderSelection();
+    };
+
+    window.taggerToggleSelectAll = function (checked) {
+      selectedIds.clear();
+      if (checked) {
+        fileOrder.forEach(function (id) { selectedIds.add(id); });
+      }
+      renderSelection();
+    };
+
+    var bulkForm = document.getElementById('bulk-form');
+    if (bulkForm) {
+      bulkForm.addEventListener('submit', function () {
+        bulkForm.querySelectorAll('input[name="file_ids"]').forEach(function (el) { el.remove(); });
+        selectedIds.forEach(function (id) {
+          var input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'file_ids';
+          input.value = id;
+          bulkForm.appendChild(input);
+        });
+      });
+    }
+  })();
 </script>
 {% endblock %}

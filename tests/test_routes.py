@@ -77,6 +77,29 @@ def test_add_source_scans_and_shows_files(client: TestClient, source_dir: Path) 
     assert r.status_code == 200
     assert "a.txt" in r.text
     assert "photos" in r.text
+    assert 'class="file-checkbox"' not in r.text
+
+
+def test_browse_page_shows_supertag_caret_and_implied_tags(
+    client: TestClient, source_dir: Path, data_dir: Path
+) -> None:
+    source_id = _add_source(client, source_dir)
+    for name in ("trip", "travel"):
+        client.post(f"/sources/{source_id}/tags", data={"name": name})
+
+    source = config.get_source(source_id, data_dir=data_dir)
+    assert source is not None
+    conn = db.connect(config.resolve_db_path(source, data_dir))
+    trip_id = conn.execute("SELECT id FROM tags WHERE name = 'trip'").fetchone()["id"]
+    travel_id = conn.execute("SELECT id FROM tags WHERE name = 'travel'").fetchone()["id"]
+    conn.close()
+    client.post(f"/sources/{source_id}/tags/{trip_id}/members", data={"member_tag_id": travel_id})
+
+    r = client.get(f"/sources/{source_id}/browse")
+    assert r.status_code == 200
+    assert "tag-caret" in r.text
+    assert "implied-sublist" in r.text
+    assert "travel" in r.text
 
 
 def test_tag_then_search_matches(client: TestClient, source_dir: Path, data_dir: Path) -> None:

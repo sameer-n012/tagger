@@ -236,9 +236,43 @@ a.tag-chip:hover { text-decoration: none; border-color: var(--moss); color: var(
 .tag-filter { width: 100%; font-size: 0.8rem; }
 
 .tag-index-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
-.tag-index-list li { display: flex; }
-.tag-index-list .tag-chip { width: 100%; justify-content: flex-start; }
-.tag-index-list .tag-chip[hidden] { display: none; }
+.tag-index-list li[hidden] { display: none; }
+
+.tag-index-entry { display: flex; align-items: center; gap: 0.25rem; }
+.tag-index-entry .tag-chip { flex: 1; justify-content: flex-start; }
+
+.tag-caret {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  line-height: 1;
+  transition: transform 0.12s ease;
+}
+.tag-caret[aria-expanded="true"] { transform: rotate(90deg); }
+.tag-caret:hover { color: var(--moss); }
+.tag-caret-spacer { flex: none; width: 1rem; }
+
+.implied-sublist {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0 0 0 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.implied-sublist .tag-chip {
+  font-size: 0.65rem;
+  padding-top: 0.1rem;
+  padding-bottom: 0.1rem;
+  opacity: 0.85;
+}
 
 .new-tag-form { display: flex; gap: 0.3rem; margin-top: 0.2rem; }
 .new-tag-form input { flex: 1; font-size: 0.78rem; }
@@ -307,7 +341,7 @@ a.tag-chip:hover { text-decoration: none; border-color: var(--moss); color: var(
 .file-row.is-selected { background: var(--paper-sunken); }
 .file-name { display: flex; align-items: center; gap: 0.4rem; }
 .file-size, .file-modified { font-family: var(--font-mono); color: var(--ink-muted); white-space: nowrap; font-size: 0.78rem; }
-.file-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.file-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; min-height: 1.4rem; }
 
 /* -------------------------------------------------- right panel: record */
 

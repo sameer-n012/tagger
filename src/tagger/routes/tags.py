@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 
 from tagger import tags as tags_module
-from tagger.routes.deps import get_conn, get_source_or_404
+from tagger.routes.deps import browse_url, get_conn, get_source_or_404
 from tagger.templating import templates
 
 router = APIRouter(prefix="/sources/{source_id}/tags", tags=["tags"])
@@ -26,7 +26,7 @@ def _safe_redirect(next_url: str, default: str) -> str:
 
 
 @router.get("")
-def list_tags_page(request: Request, source_id: str, conn: Conn):
+def list_tags_page(request: Request, source_id: str, conn: Conn, path: str = "", q: str = ""):
     source = get_source_or_404(source_id)
     all_tags = tags_module.list_tags(conn)
     members_by_supertag = {
@@ -39,6 +39,7 @@ def list_tags_page(request: Request, source_id: str, conn: Conn):
             "source": source,
             "tags": all_tags,
             "members_by_supertag": members_by_supertag,
+            "back_url": browse_url(source_id, path, q),
         },
     )
 

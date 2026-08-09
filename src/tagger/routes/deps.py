@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Iterator
+from urllib.parse import quote
 
 from fastapi import HTTPException
 
@@ -16,6 +17,17 @@ def get_source_or_404(source_id: str) -> config.SourceConfig:
     if source is None:
         raise HTTPException(status_code=404, detail=f"Unknown source: {source_id}")
     return source
+
+
+def browse_url(source_id: str, path: str = "", q: str = "") -> str:
+    """The browse URL for a given folder/search state -- shared by every
+    route that needs to send the user "back to files" without losing their
+    place (bulk-tag, per-file tag edits, the tags-management page link)."""
+    if q:
+        return f"/sources/{source_id}/browse?q={quote(q)}"
+    if path:
+        return f"/sources/{source_id}/browse?path={quote(path)}"
+    return f"/sources/{source_id}/browse"
 
 
 def get_conn(source_id: str) -> Iterator[sqlite3.Connection]:

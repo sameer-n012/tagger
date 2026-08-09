@@ -6,7 +6,6 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 from typing import Annotated
-from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
@@ -15,7 +14,7 @@ from tagger import config
 from tagger import search as search_module
 from tagger import tags as tags_module
 from tagger.config import SourceConfig
-from tagger.routes.deps import get_conn, get_source_or_404
+from tagger.routes.deps import browse_url, get_conn, get_source_or_404
 from tagger.templating import templates
 
 router = APIRouter(prefix="/sources/{source_id}", tags=["files"])
@@ -134,6 +133,9 @@ def browse(
         for row in file_rows
     ]
     all_tags = tags_module.list_tags(conn)
+    members_by_supertag = {
+        tag.id: tags_module.direct_members(conn, tag.id) for tag in all_tags if tag.is_supertag
+    }
 
     return templates.TemplateResponse(
         request,
@@ -146,20 +148,13 @@ def browse(
             "subdirs": subdirs,
             "files": files_view,
             "all_tags": all_tags,
+            "members_by_supertag": members_by_supertag,
             "missing_files": _missing_files(conn),
             "q": q,
             "search_error": search_error,
-            "back_url": _back_to_browse_url(source_id, path, q),
+            "back_url": browse_url(source_id, path, q),
         },
     )
-
-
-def _back_to_browse_url(source_id: str, path: str, q: str) -> str:
-    if q:
-        return f"/sources/{source_id}/browse?q={quote(q)}"
-    if path:
-        return f"/sources/{source_id}/browse?path={quote(path)}"
-    return f"/sources/{source_id}/browse"
 
 
 def _wants_partial(request: Request) -> bool:
@@ -264,7 +259,7 @@ async def bulk_tag(source_id: str, request: Request, conn: Conn):
         else:
             tags_module.tag_files(conn, file_ids, tag_ids)
 
-    return RedirectResponse(url=_back_to_browse_url(source_id, path, q), status_code=303)
+    return RedirectResponse(url=browse_url(source_id, path, q), status_code=303)
 
 
 @router.post("/files/{file_id}/tags")
@@ -287,7 +282,7 @@ def add_file_tag(
 
     if _wants_partial(request):
         return _render_file_panel(request, source, conn, file_id, path, q)
-    return RedirectResponse(url=_back_to_browse_url(source_id, path, q), status_code=303)
+    return RedirectResponse(url=browse_url(source_id, path, q), status_code=303)
 
 
 @router.post("/files/{file_id}/tags/{tag_id}/delete")
@@ -305,4 +300,4 @@ def remove_file_tag(
 
     if _wants_partial(request):
         return _render_file_panel(request, source, conn, file_id, path, q)
-    return RedirectResponse(url=_back_to_browse_url(source_id, path, q), status_code=303)
+    return RedirectResponse(url=browse_url(source_id, path, q), status_code=303)
