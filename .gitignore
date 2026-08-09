@@ -22,6 +22,9 @@ data/
 *.sqlite
 *.sqlite3
 
+# Runtime logs / pid files
+logs/
+
 # Testing / tooling
 .pytest_cache/
 .mypy_cache/
