@@ -149,6 +149,7 @@ def browse(
             "missing_files": _missing_files(conn),
             "q": q,
             "search_error": search_error,
+            "back_url": _back_to_browse_url(source_id, path, q),
         },
     )
 
@@ -174,13 +175,18 @@ def _render_file_panel(
     q: str,
 ):
     file_row = _get_file_or_404(conn, file_id)
+    file_tags = tags_module.tags_for_file(conn, file_id)
+    members_by_supertag = {
+        tag.id: tags_module.direct_members(conn, tag.id) for tag in file_tags if tag.is_supertag
+    }
     return templates.TemplateResponse(
         request,
         "_file_panel.html",
         {
             "source": source,
             "file": file_row,
-            "tags": tags_module.tags_for_file(conn, file_id),
+            "tags": file_tags,
+            "members_by_supertag": members_by_supertag,
             "is_image": _is_image(file_row["relative_path"]),
             "path": path,
             "q": q,

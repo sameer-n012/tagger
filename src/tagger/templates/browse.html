@@ -48,7 +48,7 @@
     </ul>
     <div class="panel-left-footer">
       <form method="post" action="/sources/{{ source.id }}/tags" class="new-tag-form">
-        <input type="hidden" name="next" value="/sources/{{ source.id }}/browse">
+        <input type="hidden" name="next" value="{{ back_url }}">
         <input type="text" name="name" placeholder="New tag…" required>
         <button type="submit" class="btn">Add</button>
       </form>

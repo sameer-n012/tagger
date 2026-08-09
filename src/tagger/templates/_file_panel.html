@@ -19,16 +19,26 @@
     <div class="eyebrow">Tags</div>
     <div class="record-tags">
       {% for tag in tags %}
-        <span class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}">
-          {{ tag.name }}
-          <form action="/sources/{{ source.id }}/files/{{ file.id }}/tags/{{ tag.id }}/delete" method="post"
-                hx-post="/sources/{{ source.id }}/files/{{ file.id }}/tags/{{ tag.id }}/delete"
-                hx-target="#right-panel" hx-swap="innerHTML" class="inline-form">
-            <input type="hidden" name="path" value="{{ path }}">
-            <input type="hidden" name="q" value="{{ q }}">
-            <button type="submit" class="chip-remove" title="Remove tag">&times;</button>
-          </form>
-        </span>
+        <div class="tag-entry">
+          <span class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}">
+            {{ tag.name }}
+            <form action="/sources/{{ source.id }}/files/{{ file.id }}/tags/{{ tag.id }}/delete" method="post"
+                  hx-post="/sources/{{ source.id }}/files/{{ file.id }}/tags/{{ tag.id }}/delete"
+                  hx-target="#right-panel" hx-swap="innerHTML" class="inline-form">
+              <input type="hidden" name="path" value="{{ path }}">
+              <input type="hidden" name="q" value="{{ q }}">
+              <button type="submit" class="chip-remove" title="Remove tag">&times;</button>
+            </form>
+          </span>
+          {% if tag.is_supertag and members_by_supertag.get(tag.id) %}
+            <div class="implied-tags">
+              <span class="implied-label">implies</span>
+              {% for member in members_by_supertag[tag.id] %}
+                <span class="implied-tag">{{ member.name }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
       {% else %}
         <span class="hint">Nothing tagged yet.</span>
       {% endfor %}

@@ -201,3 +201,71 @@ def test_supertag_workflow_via_tags_page(
     r = client.get(f"/sources/{source_id}/browse", params={"q": "travel"})
     assert r.status_code == 200
     assert "a.txt" in r.text
+
+
+def test_sources_page_defaults_path_to_home(client: TestClient) -> None:
+    r = client.get("/sources")
+    assert r.status_code == 200
+    assert str(Path.home()) in r.text
+
+
+def test_create_tag_preserves_current_folder_via_next(
+    client: TestClient, source_dir: Path
+) -> None:
+    source_id = _add_source(client, source_dir)
+    next_url = f"/sources/{source_id}/browse?path=photos"
+
+    r = client.post(
+        f"/sources/{source_id}/tags",
+        data={"name": "newtag", "next": next_url},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert r.headers["location"] == next_url
+
+    # An untrusted absolute "next" must not be honored (open-redirect guard).
+    r = client.post(
+        f"/sources/{source_id}/tags",
+        data={"name": "othertag", "next": "https://evil.example/"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert r.headers["location"] == f"/sources/{source_id}/tags"
+
+
+def test_browse_page_new_tag_form_targets_current_folder(
+    client: TestClient, source_dir: Path
+) -> None:
+    source_id = _add_source(client, source_dir)
+    r = client.get(f"/sources/{source_id}/browse", params={"path": "photos"})
+    assert r.status_code == 200
+    assert f"/sources/{source_id}/browse?path=photos" in r.text
+
+
+def test_preview_lists_implied_tags_under_supertag(
+    client: TestClient, source_dir: Path, data_dir: Path
+) -> None:
+    source_id = _add_source(client, source_dir)
+
+    for name in ("trip", "travel"):
+        client.post(f"/sources/{source_id}/tags", data={"name": name})
+
+    source = config.get_source(source_id, data_dir=data_dir)
+    assert source is not None
+    conn = db.connect(config.resolve_db_path(source, data_dir))
+    trip_id = conn.execute("SELECT id FROM tags WHERE name = 'trip'").fetchone()["id"]
+    travel_id = conn.execute("SELECT id FROM tags WHERE name = 'travel'").fetchone()["id"]
+    conn.close()
+
+    client.post(f"/sources/{source_id}/tags/{trip_id}/members", data={"member_tag_id": travel_id})
+
+    file_id = _file_id(data_dir, source_id, "a.txt")
+    client.post(
+        f"/sources/{source_id}/files/{file_id}/tags",
+        data={"tag_name": "trip", "path": "", "q": ""},
+    )
+
+    r = client.get(f"/sources/{source_id}/files/{file_id}/preview", headers={"HX-Request": "true"})
+    assert r.status_code == 200
+    assert "implies" in r.text.lower()
+    assert "travel" in r.text

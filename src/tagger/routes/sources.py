@@ -18,7 +18,11 @@ router = APIRouter(prefix="/sources", tags=["sources"])
 @router.get("")
 def list_sources(request: Request):
     app_config = config.load_config()
-    return templates.TemplateResponse(request, "sources.html", {"sources": app_config.sources})
+    return templates.TemplateResponse(
+        request,
+        "sources.html",
+        {"sources": app_config.sources, "path_value": str(Path.home())},
+    )
 
 
 @router.post("")
@@ -30,7 +34,7 @@ def add_source(request: Request, path: str = Form(...), display_name: str = Form
         return templates.TemplateResponse(
             request,
             "sources.html",
-            {"sources": app_config.sources, "error": str(exc)},
+            {"sources": app_config.sources, "error": str(exc), "path_value": path},
             status_code=400,
         )
 

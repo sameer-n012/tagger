@@ -346,7 +346,24 @@ a.tag-chip:hover { text-decoration: none; border-color: var(--moss); color: var(
 .record-meta-row .label { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-muted); flex: none; width: 4.5rem; }
 .record-meta-row .value { font-family: var(--font-mono); word-break: break-all; }
 
-.record-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+.record-tags { display: flex; flex-direction: column; gap: 0.4rem; }
+.tag-entry { display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-start; }
+.implied-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; padding-left: 0.7rem; }
+.implied-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.implied-tag {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--ink-muted);
+  background: var(--paper-sunken);
+  border-radius: 3px;
+  padding: 0.05rem 0.4rem;
+}
 .add-tag-form { display: flex; gap: 0.3rem; }
 .add-tag-form input { font-size: 0.78rem; width: 8rem; }
 
