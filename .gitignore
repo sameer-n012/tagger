@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# uv / venv
+.venv/
+venv/
+
+# App data — per-source-directory databases and local config live here,
+# never committed (they reference the user's local filesystem paths).
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Testing / tooling
+.pytest_cache/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Env
+.env
+.env.*
