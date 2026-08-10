@@ -2,7 +2,8 @@
 {% block title %}{{ source.display_name }} — tagger{% endblock %}
 
 {% block body %}
-<div class="workspace" data-source-id="{{ source.id }}" data-path="{{ path }}" data-q="{{ q }}">
+<div class="workspace" data-source-id="{{ source.id }}" data-path="{{ path }}" data-q="{{ q }}"
+     data-scanning="{{ 'true' if scanning else 'false' }}">
   <header class="topbar">
     <a class="brand" href="/sources">tagger</a>
 
@@ -160,6 +161,16 @@
   </aside>
 </div>
 
+<div id="scan-overlay" class="scan-overlay" {% if not scanning %}hidden{% endif %}>
+  <div class="scan-overlay-box">
+    <div class="spinner"></div>
+    <div class="scan-overlay-label" id="scan-overlay-label">Scanning…</div>
+    <div class="progress-track">
+      <div class="progress-fill indeterminate" id="scan-progress-fill"></div>
+    </div>
+  </div>
+</div>
+
 <dialog id="missing-dialog">
   <div class="dialog-header">
     <strong>Missing files</strong>
@@ -191,6 +202,42 @@
   (function () {
     var workspace = document.querySelector('.workspace');
     var sourceId = workspace.dataset.sourceId;
+
+    function pollScanStatus(sawScanning) {
+      fetch('/sources/' + sourceId + '/scan-status')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var overlay = document.getElementById('scan-overlay');
+          var label = document.getElementById('scan-overlay-label');
+          var fill = document.getElementById('scan-progress-fill');
+
+          if (data.scanning) {
+            overlay.hidden = false;
+            if (data.total > 0) {
+              var pct = Math.min(100, Math.round((data.processed / data.total) * 100));
+              fill.classList.remove('indeterminate');
+              fill.style.width = pct + '%';
+              label.textContent = 'Scanning… ' + data.processed + ' / ' + data.total + ' files';
+            } else {
+              fill.classList.add('indeterminate');
+              label.textContent = 'Scanning…';
+            }
+            setTimeout(function () { pollScanStatus(true); }, 500);
+          } else {
+            overlay.hidden = true;
+            if (sawScanning) {
+              // New/changed files were found -- reload to show them.
+              location.reload();
+            }
+          }
+        })
+        .catch(function () {
+          setTimeout(function () { pollScanStatus(sawScanning); }, 1500);
+        });
+    }
+
+    pollScanStatus(workspace.dataset.scanning === 'true');
+
     var currentPath = workspace.dataset.path;
     var currentQuery = workspace.dataset.q;
     var fileOrder = Array.prototype.map.call(

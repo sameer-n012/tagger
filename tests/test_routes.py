@@ -12,6 +12,7 @@ pattern that pyright can't fully resolve even in upstream httpx, producing
 unrelated to this file's own code.
 """
 
+import time
 from pathlib import Path
 
 import pytest
@@ -42,6 +43,20 @@ def source_dir(tmp_path: Path) -> Path:
     return root
 
 
+def _wait_for_scan(client: TestClient, source_id: str, timeout: float = 5.0) -> None:
+    """Scans now run on a background thread (see scan_status.py) so the
+    add-source/rescan requests return immediately; tests that need the scan
+    to have actually finished poll the same /scan-status endpoint the
+    browser's overlay polls."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        r = client.get(f"/sources/{source_id}/scan-status")
+        if not r.json()["scanning"]:
+            return
+        time.sleep(0.01)
+    raise AssertionError(f"scan for source {source_id} did not finish within {timeout}s")
+
+
 def _add_source(client: TestClient, source_dir: Path) -> str:
     r = client.post(
         "/sources",
@@ -49,7 +64,9 @@ def _add_source(client: TestClient, source_dir: Path) -> str:
         follow_redirects=False,
     )
     assert r.status_code == 303
-    return r.headers["location"].split("/")[2]
+    source_id = r.headers["location"].split("/")[2]
+    _wait_for_scan(client, source_id)
+    return source_id
 
 
 def _file_id(data_dir: Path, source_id: str, relative_path: str) -> int:
@@ -78,6 +95,53 @@ def test_add_source_scans_and_shows_files(client: TestClient, source_dir: Path) 
     assert "a.txt" in r.text
     assert "photos" in r.text
     assert 'class="file-checkbox"' not in r.text
+
+
+def test_add_source_redirects_before_scan_completes(
+    client: TestClient, source_dir: Path
+) -> None:
+    """The redirect (and the scan-status endpoint reporting "scanning") must
+    both be available immediately, before the background scan finishes --
+    that's what lets the browse page's overlay show up without a race."""
+    r = client.post(
+        "/sources",
+        data={"path": str(source_dir), "display_name": "Demo"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    source_id = r.headers["location"].split("/")[2]
+
+    r = client.get(f"/sources/{source_id}/scan-status")
+    assert r.status_code == 200
+    assert r.json()["scanning"] is True
+
+    _wait_for_scan(client, source_id)
+    r = client.get(f"/sources/{source_id}/scan-status")
+    assert r.json() == {"scanning": False, "processed": 0, "total": 0, "error": None}
+
+
+def test_browse_page_renders_overlay_visible_while_scanning(
+    client: TestClient, source_dir: Path
+) -> None:
+    # _add_source waits for the (fast, real) background scan to finish, so
+    # to deterministically exercise the "still scanning" render path (which
+    # would otherwise race a background thread over a two-file fixture) we
+    # flip scan_status directly rather than relying on scan timing.
+    from tagger import scan_status
+
+    source_id = _add_source(client, source_dir)
+
+    r = client.get(f"/sources/{source_id}/browse")
+    assert 'data-scanning="false"' in r.text
+    assert 'id="scan-overlay" class="scan-overlay" hidden' in r.text
+
+    scan_status.start(source_id)
+    try:
+        r = client.get(f"/sources/{source_id}/browse")
+        assert 'data-scanning="true"' in r.text
+        assert 'id="scan-overlay" class="scan-overlay" ' in r.text  # not hidden
+    finally:
+        scan_status.finish(source_id)
 
 
 def test_browse_page_shows_supertag_caret_and_implied_tags(
@@ -183,6 +247,7 @@ def test_missing_file_appears_and_can_be_purged(
     (source_dir / "a.txt").unlink()
     r = client.post(f"/sources/{source_id}/rescan", follow_redirects=False)
     assert r.status_code == 303
+    _wait_for_scan(client, source_id)
 
     r = client.get(f"/sources/{source_id}/browse")
     assert "missing since" in r.text

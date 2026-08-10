@@ -12,7 +12,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
-from tagger import config
+from tagger import config, scan_status
 from tagger import search as search_module
 from tagger import tags as tags_module
 from tagger.config import SourceConfig
@@ -161,6 +161,7 @@ def browse(
     members_by_supertag = {
         tag.id: tags_module.direct_members(conn, tag.id) for tag in all_tags if tag.is_supertag
     }
+    current_scan = scan_status.get(source_id)
 
     return templates.TemplateResponse(
         request,
@@ -177,6 +178,7 @@ def browse(
             "missing_files": _missing_files(conn),
             "q": q,
             "search_error": search_error,
+            "scanning": current_scan is not None and current_scan.state == "scanning",
             "back_url": browse_url(source_id, path, q),
         },
     )

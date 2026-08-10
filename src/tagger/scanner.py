@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -20,6 +21,9 @@ from tagger.models import FileStatus, ScanSummary
 _HASH_CHUNK_SIZE = 1024 * 1024
 
 logger = logging.getLogger(__name__)
+
+ProgressCallback = Callable[[int, int], None]
+"""Called as progress_cb(files_processed, files_total) while hashing."""
 
 
 def compute_file_hash(path: Path) -> str:
@@ -37,14 +41,22 @@ class DiskFile:
     mtime: str
 
 
-def walk_source(root: Path) -> dict[str, DiskFile]:
+def _count_files(root: Path) -> int:
+    """A cheap (metadata-only, no hashing) pass to size the progress bar's
+    denominator before the slow hashing pass starts."""
+    return sum(1 for path in root.rglob("*") if path.is_file())
+
+
+def walk_source(root: Path, progress_cb: ProgressCallback | None = None) -> dict[str, DiskFile]:
     """Recursively hash every regular file under root.
 
     Returns a mapping of POSIX-style relative path -> DiskFile. Files that
     disappear or become unreadable mid-walk are silently skipped for this
     pass -- a subsequent rescan will pick up whatever state settles.
     """
+    total = _count_files(root) if progress_cb else 0
     result: dict[str, DiskFile] = {}
+    processed = 0
     for path in root.rglob("*"):
         if not path.is_file():
             continue
@@ -59,10 +71,15 @@ def walk_source(root: Path) -> dict[str, DiskFile]:
             size=stat.st_size,
             mtime=datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
         )
+        processed += 1
+        if progress_cb is not None:
+            progress_cb(processed, total)
     return result
 
 
-def rescan(conn: sqlite3.Connection, root: Path) -> ScanSummary:
+def rescan(
+    conn: sqlite3.Connection, root: Path, progress_cb: ProgressCallback | None = None
+) -> ScanSummary:
     """Diff the current contents of root against the database and apply
     the new/moved/missing/purge transitions described in CLAUDE.md.
     """
@@ -79,7 +96,7 @@ def rescan(conn: sqlite3.Connection, root: Path) -> ScanSummary:
         else:
             db_missing[row["relative_path"]] = row
 
-    on_disk = walk_source(root)
+    on_disk = walk_source(root, progress_cb)
 
     unchanged_paths = {
         p for p, disk_file in on_disk.items()
