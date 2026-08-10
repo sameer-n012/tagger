@@ -207,6 +207,35 @@ def test_tag_then_search_matches(client: TestClient, source_dir: Path, data_dir:
     assert "a.txt" not in r.text
 
 
+def test_search_is_scoped_to_current_path_and_subdirectories(
+    client: TestClient, source_dir: Path, data_dir: Path
+) -> None:
+    (source_dir / "notes.txt").write_text("top level")
+    source_id = _add_source(client, source_dir)
+
+    for rel in ("a.txt", "notes.txt", "photos/b.png"):
+        file_id = _file_id(data_dir, source_id, rel)
+        client.post(
+            f"/sources/{source_id}/files/{file_id}/tags",
+            data={"tag_name": "shared", "path": "", "q": ""},
+        )
+
+    # Scoped to photos/ -- only the file under that subtree should match,
+    # even though "shared" also tags files elsewhere in the source.
+    r = client.get(f"/sources/{source_id}/browse", params={"q": "shared", "path": "photos"})
+    assert r.status_code == 200
+    assert "b.png" in r.text
+    assert "a.txt" not in r.text
+    assert "notes.txt" not in r.text
+
+    # Unscoped (source root, no path) -- all three should match.
+    r = client.get(f"/sources/{source_id}/browse", params={"q": "shared"})
+    assert r.status_code == 200
+    assert "b.png" in r.text
+    assert "a.txt" in r.text
+    assert "notes.txt" in r.text
+
+
 def test_untagged_search_matches_only_files_with_no_tags(
     client: TestClient, source_dir: Path, data_dir: Path
 ) -> None:

@@ -16,6 +16,7 @@
     </select>
 
     <form method="get" action="/sources/{{ source.id }}/browse" class="search-form">
+      <input type="hidden" name="path" value="{{ path }}">
       <input type="search" name="q" value="{{ q }}"
              placeholder='vacation and (2023 or 2024) and not private, or "untagged"'>
     </form>
@@ -36,7 +37,8 @@
     <div class="eyebrow">Index</div>
     <input type="text" class="tag-filter" placeholder="Filter tags…"
            oninput="taggerFilterTags(this.value)">
-    <a class="tag-chip untagged-chip" href="/sources/{{ source.id }}/browse?q=untagged">Untagged files</a>
+    <a class="tag-chip untagged-chip"
+       href="/sources/{{ source.id }}/browse?q=untagged&amp;path={{ path|urlencode }}">Untagged files</a>
     <ul class="tag-index-list" id="tag-index-list">
       {% for tag in all_tags %}
         <li>
@@ -49,14 +51,14 @@
             {% endif %}
             <a class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}"
                data-name="{{ tag.name|lower }}"
-               href="/sources/{{ source.id }}/browse?q={{ tag.name }}">{{ tag.name }}</a>
+               href="/sources/{{ source.id }}/browse?q={{ tag.name }}&amp;path={{ path|urlencode }}">{{ tag.name }}</a>
           </div>
           {% if tag.is_supertag %}
             <ul class="implied-sublist" hidden>
               {% for member in members_by_supertag.get(tag.id, []) %}
                 <li>
                   <a class="tag-chip"
-                     href="/sources/{{ source.id }}/browse?q={{ member.name }}">{{ member.name }}</a>
+                     href="/sources/{{ source.id }}/browse?q={{ member.name }}&amp;path={{ path|urlencode }}">{{ member.name }}</a>
                 </li>
               {% else %}
                 <li class="hint">No implied tags.</li>
@@ -86,7 +88,15 @@
         {% endfor %}
       </nav>
     {% else %}
-      <p class="hint">Results for <code>{{ q }}</code></p>
+      <p class="hint">
+        Results for <code>{{ q }}</code>
+        {% if path %}
+          in <code>{{ path }}</code>
+          <a href="/sources/{{ source.id }}/browse?q={{ q|urlencode }}">(search whole source)</a>
+        {% else %}
+          in the whole source
+        {% endif %}
+      </p>
     {% endif %}
 
     {% if search_error %}

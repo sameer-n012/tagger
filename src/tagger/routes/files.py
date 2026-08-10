@@ -61,13 +61,19 @@ def _breadcrumbs(path: str) -> list[tuple[str, str]]:
     return crumbs
 
 
+def _path_prefix_pattern(prefix: str) -> tuple[str, str]:
+    """(normalized_prefix, LIKE pattern) for matching prefix and everything
+    under it (prefix='' means the whole source)."""
+    prefix_norm = f"{prefix.strip('/')}/" if prefix else ""
+    return prefix_norm, f"{prefix_norm}%" if prefix_norm else "%"
+
+
 def _list_directory(
     conn: sqlite3.Connection, prefix: str
 ) -> tuple[list[str], list[sqlite3.Row]]:
     """Direct subdirectory names and direct active files under prefix
     (prefix='' means the source root)."""
-    prefix_norm = f"{prefix.strip('/')}/" if prefix else ""
-    like_pattern = f"{prefix_norm}%" if prefix_norm else "%"
+    prefix_norm, like_pattern = _path_prefix_pattern(prefix)
     rows = conn.execute(
         "SELECT * FROM files WHERE status = 'active' AND relative_path LIKE ? "
         "ORDER BY relative_path",
@@ -91,10 +97,17 @@ def _list_directory(
 _UNTAGGED_TERM = "untagged"
 
 
-def _search_files(conn: sqlite3.Connection, query: str) -> list[sqlite3.Row]:
+def _search_files(conn: sqlite3.Connection, query: str, path: str = "") -> list[sqlite3.Row]:
+    """Search, scoped to `path` and everything under it (path='' means the
+    whole source)."""
     expr = search_module.parse(query)
+    _prefix_norm, like_pattern = _path_prefix_pattern(path)
     universe = {
-        row["id"] for row in conn.execute("SELECT id FROM files WHERE status = 'active'")
+        row["id"]
+        for row in conn.execute(
+            "SELECT id FROM files WHERE status = 'active' AND relative_path LIKE ?",
+            (like_pattern,),
+        )
     }
 
     def resolver(tag_name: str) -> set[int]:
@@ -109,7 +122,9 @@ def _search_files(conn: sqlite3.Connection, query: str) -> list[sqlite3.Row]:
         tag_ids = tags_module.resolve_search_tag_ids(conn, tag_name)
         return tags_module.file_ids_with_any_tag(conn, tag_ids)
 
-    matched_ids = search_module.evaluate(expr, resolver, universe)
+    # evaluate() only consults `universe` for `not` -- intersect explicitly
+    # so a bare/AND/OR query is scoped to path too, not just negations.
+    matched_ids = search_module.evaluate(expr, resolver, universe) & universe
     if not matched_ids:
         return []
     placeholders = ",".join("?" for _ in matched_ids)
@@ -148,14 +163,17 @@ def browse(
 
     if q.strip():
         try:
-            file_rows = _search_files(conn, q)
+            file_rows = _search_files(conn, q, path)
             logger.info(
-                "search source_id=%s query=%r matches=%d", source_id, q, len(file_rows)
+                "search source_id=%s path=%r query=%r matches=%d",
+                source_id, path, q, len(file_rows),
             )
         except search_module.SearchSyntaxError as exc:
             search_error = str(exc)
             file_rows = []
-            logger.info("search source_id=%s query=%r error=%s", source_id, q, search_error)
+            logger.info(
+                "search source_id=%s path=%r query=%r error=%s", source_id, path, q, search_error
+            )
     else:
         subdirs, file_rows = _list_directory(conn, path)
 
