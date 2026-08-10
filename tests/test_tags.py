@@ -103,6 +103,18 @@ def test_bulk_tag_and_untag_files(conn: sqlite3.Connection) -> None:
     assert {t.id for t in tags.tags_for_file(conn, f2)} == {tag.id}
 
 
+def test_reserved_tag_name_cannot_be_created_or_renamed_to(conn: sqlite3.Connection) -> None:
+    with pytest.raises(ValueError):
+        tags.create_tag(conn, "untagged")
+    with pytest.raises(ValueError):
+        tags.create_tag(conn, "Untagged")  # case-insensitive
+
+    other = tags.create_tag(conn, "vacation")
+    with pytest.raises(ValueError):
+        tags.rename_tag(conn, other.id, "untagged")
+    assert tags.get_tag_by_name(conn, "untagged") is None
+
+
 def test_untagged_file_ids(conn: sqlite3.Connection) -> None:
     tag = tags.create_tag(conn, "keepsake")
     tagged = _make_file(conn, "a.txt")

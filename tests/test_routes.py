@@ -236,6 +236,42 @@ def test_search_is_scoped_to_current_path_and_subdirectories(
     assert "notes.txt" in r.text
 
 
+def test_cannot_create_tag_named_untagged(client: TestClient, source_dir: Path) -> None:
+    source_id = _add_source(client, source_dir)
+
+    r = client.post(
+        f"/sources/{source_id}/tags", data={"name": "untagged"}, follow_redirects=False
+    )
+    assert r.status_code == 303
+    location = r.headers["location"]
+    assert "error=" in location
+
+    r = client.get(location)
+    assert r.status_code == 200
+    assert "reserved" in r.text.lower()
+
+    r = client.get(f"/sources/{source_id}/tags")
+    assert "untagged" not in [
+        line.strip() for line in r.text.splitlines() if "tag-chip" in line
+    ]
+
+
+def test_cannot_tag_a_file_with_reserved_name(
+    client: TestClient, source_dir: Path, data_dir: Path
+) -> None:
+    source_id = _add_source(client, source_dir)
+    file_id = _file_id(data_dir, source_id, "a.txt")
+
+    r = client.post(
+        f"/sources/{source_id}/files/{file_id}/tags",
+        data={"tag_name": "untagged", "path": "", "q": ""},
+        headers={"HX-Request": "true"},
+    )
+    assert r.status_code == 200
+    assert "reserved" in r.text.lower()
+    assert "Nothing tagged yet." in r.text
+
+
 def test_untagged_search_matches_only_files_with_no_tags(
     client: TestClient, source_dir: Path, data_dir: Path
 ) -> None:

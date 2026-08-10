@@ -15,6 +15,12 @@ from collections.abc import Iterable
 from tagger import db
 from tagger.models import Tag
 
+RESERVED_TAG_NAMES = {"untagged"}
+"""Names that can never be a real tag -- "untagged" is a reserved search
+keyword (see files.py's _search_files) for "has zero tags"; allowing a real
+tag with that name would make it ambiguous which meaning a search for it
+has."""
+
 
 def _row_to_tag(row: sqlite3.Row) -> Tag:
     return Tag(
@@ -32,6 +38,8 @@ def create_tag(
     is_supertag: bool = False,
     color: str | None = None,
 ) -> Tag:
+    if name.strip().lower() in RESERVED_TAG_NAMES:
+        raise ValueError(f'"{name}" is a reserved name and can\'t be used for a tag')
     if get_tag_by_name(conn, name) is not None:
         raise ValueError(f"Tag already exists: {name}")
     now = db.utcnow_iso()
@@ -61,6 +69,8 @@ def list_tags(conn: sqlite3.Connection) -> list[Tag]:
 
 
 def rename_tag(conn: sqlite3.Connection, tag_id: int, new_name: str) -> None:
+    if new_name.strip().lower() in RESERVED_TAG_NAMES:
+        raise ValueError(f'"{new_name}" is a reserved name and can\'t be used for a tag')
     existing = get_tag_by_name(conn, new_name)
     if existing is not None and existing.id != tag_id:
         raise ValueError(f"Tag already exists: {new_name}")

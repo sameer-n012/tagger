@@ -16,7 +16,7 @@ from tagger import config, scan_status
 from tagger import search as search_module
 from tagger import tags as tags_module
 from tagger.config import SourceConfig
-from tagger.routes.deps import browse_url, get_conn, get_source_or_404
+from tagger.routes.deps import browse_url, get_conn, get_source_or_404, with_query_param
 from tagger.templating import templates
 
 router = APIRouter(prefix="/sources/{source_id}", tags=["files"])
@@ -154,6 +154,7 @@ def browse(
     conn: Conn,
     path: str = "",
     q: str = "",
+    error: str = "",
 ):
     source = get_source_or_404(source_id)
 
@@ -207,6 +208,7 @@ def browse(
             "missing_files": _missing_files(conn),
             "q": q,
             "search_error": search_error,
+            "error": error,
             "scanning": current_scan is not None and current_scan.state == "scanning",
             "back_url": browse_url(source_id, path, q),
         },
@@ -224,6 +226,7 @@ def _render_file_panel(
     file_id: int,
     path: str,
     q: str,
+    error: str | None = None,
 ):
     file_row = _get_file_or_404(conn, file_id)
     file_tags = tags_module.tags_for_file(conn, file_id)
@@ -242,6 +245,7 @@ def _render_file_panel(
             "is_video": _is_video(file_row["relative_path"]),
             "path": path,
             "q": q,
+            "error": error,
         },
     )
 
@@ -308,7 +312,13 @@ async def bulk_tag(source_id: str, request: Request, conn: Conn):
         if tag is None:
             if action == "remove":
                 continue
-            tag = tags_module.create_tag(conn, name)
+            try:
+                tag = tags_module.create_tag(conn, name)
+            except ValueError:
+                # Reserved name ("untagged") or a duplicate-by-race -- skip
+                # just this one name rather than failing the whole batch.
+                logger.info("bulk tag skipped invalid name source_id=%s name=%s", source_id, name)
+                continue
         tag_ids.append(tag.id)
 
     if file_ids and tag_ids:
@@ -336,16 +346,25 @@ def add_file_tag(
 ):
     source = get_source_or_404(source_id)
     name = tag_name.strip()
+    error: str | None = None
     if name:
         tag = tags_module.get_tag_by_name(conn, name)
         if tag is None:
-            tag = tags_module.create_tag(conn, name)
-        tags_module.tag_files(conn, [file_id], [tag.id])
-        logger.info("tag added source_id=%s file_id=%s tag=%s", source_id, file_id, name)
+            try:
+                tag = tags_module.create_tag(conn, name)
+            except ValueError as exc:
+                error = str(exc)
+                tag = None
+        if tag is not None:
+            tags_module.tag_files(conn, [file_id], [tag.id])
+            logger.info("tag added source_id=%s file_id=%s tag=%s", source_id, file_id, name)
 
     if _wants_partial(request):
-        return _render_file_panel(request, source, conn, file_id, path, q)
-    return RedirectResponse(url=browse_url(source_id, path, q), status_code=303)
+        return _render_file_panel(request, source, conn, file_id, path, q, error=error)
+    target = browse_url(source_id, path, q)
+    if error:
+        target = with_query_param(target, "error", error)
+    return RedirectResponse(url=target, status_code=303)
 
 
 @router.post("/files/{file_id}/tags/{tag_id}/delete")

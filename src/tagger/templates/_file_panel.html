@@ -19,6 +19,9 @@
 
   <div>
     <div class="eyebrow">Tags</div>
+    {% if error %}
+      <p class="error-banner">{{ error }}</p>
+    {% endif %}
     <div class="record-tags">
       {% for tag in tags %}
         <div class="tag-entry">

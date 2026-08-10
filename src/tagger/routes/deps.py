@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Iterator
-from urllib.parse import quote
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 from fastapi import HTTPException
 
@@ -36,6 +36,16 @@ def browse_url(source_id: str, path: str = "", q: str = "") -> str:
     if not params:
         return f"/sources/{source_id}/browse"
     return f"/sources/{source_id}/browse?{'&'.join(params)}"
+
+
+def with_query_param(url: str, key: str, value: str) -> str:
+    """Set/replace a single query param on url, preserving whatever else is
+    there. Used to flash a one-off error onto a redirect target (e.g.
+    "next") without clobbering the path/q it already carries."""
+    scheme, netloc, path, query, fragment = urlsplit(url)
+    params = dict(parse_qsl(query))
+    params[key] = value
+    return urlunsplit((scheme, netloc, path, urlencode(params), fragment))
 
 
 def get_conn(source_id: str) -> Iterator[sqlite3.Connection]:

@@ -103,6 +103,10 @@
       <p class="error-banner">Can't parse that search: {{ search_error }}</p>
     {% endif %}
 
+    {% if error %}
+      <p class="error-banner">{{ error }}</p>
+    {% endif %}
+
     <datalist id="known-tags">
       {% for tag in all_tags %}
         <option value="{{ tag.name }}">

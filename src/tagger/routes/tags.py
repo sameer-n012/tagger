@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 
 from tagger import tags as tags_module
-from tagger.routes.deps import browse_url, get_conn, get_source_or_404
+from tagger.routes.deps import browse_url, get_conn, get_source_or_404, with_query_param
 from tagger.templating import templates
 
 router = APIRouter(prefix="/sources/{source_id}/tags", tags=["tags"])
@@ -28,7 +28,9 @@ def _safe_redirect(next_url: str, default: str) -> str:
 
 
 @router.get("")
-def list_tags_page(request: Request, source_id: str, conn: Conn, path: str = "", q: str = ""):
+def list_tags_page(
+    request: Request, source_id: str, conn: Conn, path: str = "", q: str = "", error: str = ""
+):
     source = get_source_or_404(source_id)
     all_tags = tags_module.list_tags(conn)
     members_by_supertag = {
@@ -42,6 +44,7 @@ def list_tags_page(request: Request, source_id: str, conn: Conn, path: str = "",
             "tags": all_tags,
             "members_by_supertag": members_by_supertag,
             "back_url": browse_url(source_id, path, q),
+            "error": error,
         },
     )
 
@@ -49,23 +52,29 @@ def list_tags_page(request: Request, source_id: str, conn: Conn, path: str = "",
 @router.post("")
 def create_tag(source_id: str, conn: Conn, name: str = Form(...), next: str = Form("")):
     name = name.strip()
-    if name and tags_module.get_tag_by_name(conn, name) is None:
-        tags_module.create_tag(conn, name)
-        logger.info("tag created source_id=%s name=%s", source_id, name)
-    return RedirectResponse(
-        url=_safe_redirect(next, f"/sources/{source_id}/tags"), status_code=303
-    )
+    target = _safe_redirect(next, f"/sources/{source_id}/tags")
+    if name:
+        try:
+            tags_module.create_tag(conn, name)
+            logger.info("tag created source_id=%s name=%s", source_id, name)
+        except ValueError as exc:
+            target = with_query_param(target, "error", str(exc))
+    return RedirectResponse(url=target, status_code=303)
 
 
 @router.post("/{tag_id}/rename")
 def rename_tag(source_id: str, tag_id: int, conn: Conn, new_name: str = Form(...)):
     new_name = new_name.strip()
+    target = f"/sources/{source_id}/tags"
     if new_name:
-        tags_module.rename_tag(conn, tag_id, new_name)
-        logger.info(
-            "tag renamed source_id=%s tag_id=%s new_name=%s", source_id, tag_id, new_name
-        )
-    return RedirectResponse(url=f"/sources/{source_id}/tags", status_code=303)
+        try:
+            tags_module.rename_tag(conn, tag_id, new_name)
+            logger.info(
+                "tag renamed source_id=%s tag_id=%s new_name=%s", source_id, tag_id, new_name
+            )
+        except ValueError as exc:
+            target = with_query_param(target, "error", str(exc))
+    return RedirectResponse(url=target, status_code=303)
 
 
 @router.post("/{tag_id}/delete")

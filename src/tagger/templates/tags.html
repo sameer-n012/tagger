@@ -13,6 +13,10 @@
     <h1>Manage tags &amp; supertags</h1>
     <p class="hint">A supertag implies its members: tagging a file with a supertag also matches searches for anything it implies.</p>
 
+    {% if error %}
+      <p class="error-banner">{{ error }}</p>
+    {% endif %}
+
     <form method="post" action="/sources/{{ source.id }}/tags" class="stacked-form">
       <label>
         New tag name
