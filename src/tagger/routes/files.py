@@ -3,6 +3,8 @@ missing-file bookkeeping."""
 
 from __future__ import annotations
 
+import logging
+import mimetypes
 import sqlite3
 from pathlib import Path
 from typing import Annotated
@@ -18,14 +20,32 @@ from tagger.routes.deps import browse_url, get_conn, get_source_or_404
 from tagger.templating import templates
 
 router = APIRouter(prefix="/sources/{source_id}", tags=["files"])
+logger = logging.getLogger(__name__)
 
 Conn = Annotated[sqlite3.Connection, Depends(get_conn)]
 
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"}
+_VIDEO_EXTENSIONS = {".mp4", ".webm", ".mkv", ".mov", ".mpg", ".mpeg", ".avi", ".m4v"}
+
+# python's stdlib mimetypes table is missing (or has stale) entries for a
+# few of these -- register them explicitly so FileResponse (in file_raw)
+# sends a content-type the browser's <video> element will actually play.
+mimetypes.add_type("video/mp4", ".mp4")
+mimetypes.add_type("video/webm", ".webm")
+mimetypes.add_type("video/x-matroska", ".mkv")
+mimetypes.add_type("video/quicktime", ".mov")
+mimetypes.add_type("video/mpeg", ".mpg")
+mimetypes.add_type("video/mpeg", ".mpeg")
+mimetypes.add_type("video/x-msvideo", ".avi")
+mimetypes.add_type("video/x-m4v", ".m4v")
 
 
 def _is_image(relative_path: str) -> bool:
     return Path(relative_path).suffix.lower() in _IMAGE_EXTENSIONS
+
+
+def _is_video(relative_path: str) -> bool:
+    return Path(relative_path).suffix.lower() in _VIDEO_EXTENSIONS
 
 
 def _breadcrumbs(path: str) -> list[tuple[str, str]]:
@@ -118,9 +138,13 @@ def browse(
     if q.strip():
         try:
             file_rows = _search_files(conn, q)
+            logger.info(
+                "search source_id=%s query=%r matches=%d", source_id, q, len(file_rows)
+            )
         except search_module.SearchSyntaxError as exc:
             search_error = str(exc)
             file_rows = []
+            logger.info("search source_id=%s query=%r error=%s", source_id, q, search_error)
     else:
         subdirs, file_rows = _list_directory(conn, path)
 
@@ -129,6 +153,7 @@ def browse(
             "file": row,
             "tags": tags_module.tags_for_file(conn, row["id"]),
             "is_image": _is_image(row["relative_path"]),
+            "is_video": _is_video(row["relative_path"]),
         }
         for row in file_rows
     ]
@@ -183,6 +208,7 @@ def _render_file_panel(
             "tags": file_tags,
             "members_by_supertag": members_by_supertag,
             "is_image": _is_image(file_row["relative_path"]),
+            "is_video": _is_video(file_row["relative_path"]),
             "path": path,
             "q": q,
         },
@@ -226,6 +252,7 @@ def purge_file(request: Request, source_id: str, file_id: int, conn: Conn):
     if row is not None and row["status"] == "missing":
         conn.execute("DELETE FROM files WHERE id = ?", (file_id,))
         conn.commit()
+        logger.info("file purged source_id=%s file_id=%s", source_id, file_id)
     return templates.TemplateResponse(
         request,
         "_missing_list.html",
@@ -258,6 +285,10 @@ async def bulk_tag(source_id: str, request: Request, conn: Conn):
             tags_module.untag_files(conn, file_ids, tag_ids)
         else:
             tags_module.tag_files(conn, file_ids, tag_ids)
+        logger.info(
+            "bulk tag source_id=%s action=%s file_count=%d tags=%s",
+            source_id, action, len(file_ids), names,
+        )
 
     return RedirectResponse(url=browse_url(source_id, path, q), status_code=303)
 
@@ -279,6 +310,7 @@ def add_file_tag(
         if tag is None:
             tag = tags_module.create_tag(conn, name)
         tags_module.tag_files(conn, [file_id], [tag.id])
+        logger.info("tag added source_id=%s file_id=%s tag=%s", source_id, file_id, name)
 
     if _wants_partial(request):
         return _render_file_panel(request, source, conn, file_id, path, q)
@@ -297,6 +329,7 @@ def remove_file_tag(
 ):
     source = get_source_or_404(source_id)
     tags_module.untag_files(conn, [file_id], [tag_id])
+    logger.info("tag removed source_id=%s file_id=%s tag_id=%s", source_id, file_id, tag_id)
 
     if _wants_partial(request):
         return _render_file_panel(request, source, conn, file_id, path, q)

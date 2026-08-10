@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from typing import Annotated
 
@@ -13,6 +14,7 @@ from tagger.routes.deps import browse_url, get_conn, get_source_or_404
 from tagger.templating import templates
 
 router = APIRouter(prefix="/sources/{source_id}/tags", tags=["tags"])
+logger = logging.getLogger(__name__)
 
 Conn = Annotated[sqlite3.Connection, Depends(get_conn)]
 
@@ -49,6 +51,7 @@ def create_tag(source_id: str, conn: Conn, name: str = Form(...), next: str = Fo
     name = name.strip()
     if name and tags_module.get_tag_by_name(conn, name) is None:
         tags_module.create_tag(conn, name)
+        logger.info("tag created source_id=%s name=%s", source_id, name)
     return RedirectResponse(
         url=_safe_redirect(next, f"/sources/{source_id}/tags"), status_code=303
     )
@@ -59,12 +62,16 @@ def rename_tag(source_id: str, tag_id: int, conn: Conn, new_name: str = Form(...
     new_name = new_name.strip()
     if new_name:
         tags_module.rename_tag(conn, tag_id, new_name)
+        logger.info(
+            "tag renamed source_id=%s tag_id=%s new_name=%s", source_id, tag_id, new_name
+        )
     return RedirectResponse(url=f"/sources/{source_id}/tags", status_code=303)
 
 
 @router.post("/{tag_id}/delete")
 def delete_tag(source_id: str, tag_id: int, conn: Conn):
     tags_module.delete_tag(conn, tag_id)
+    logger.info("tag deleted source_id=%s tag_id=%s", source_id, tag_id)
     return RedirectResponse(url=f"/sources/{source_id}/tags", status_code=303)
 
 
@@ -72,6 +79,10 @@ def delete_tag(source_id: str, tag_id: int, conn: Conn):
 def add_member(source_id: str, tag_id: int, conn: Conn, member_tag_id: int = Form(...)):
     try:
         tags_module.add_supertag_member(conn, tag_id, member_tag_id)
+        logger.info(
+            "supertag member added source_id=%s supertag_id=%s member_tag_id=%s",
+            source_id, tag_id, member_tag_id,
+        )
     except ValueError:
         pass  # self-membership or cycle -- silently ignored, no member added
     return RedirectResponse(url=f"/sources/{source_id}/tags", status_code=303)
@@ -80,4 +91,8 @@ def add_member(source_id: str, tag_id: int, conn: Conn, member_tag_id: int = For
 @router.post("/{tag_id}/members/{member_id}/delete")
 def remove_member(source_id: str, tag_id: int, member_id: int, conn: Conn):
     tags_module.remove_supertag_member(conn, tag_id, member_id)
+    logger.info(
+        "supertag member removed source_id=%s supertag_id=%s member_tag_id=%s",
+        source_id, tag_id, member_id,
+    )
     return RedirectResponse(url=f"/sources/{source_id}/tags", status_code=303)

@@ -3,6 +3,7 @@ trigger a rescan of one."""
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Form, Request
@@ -13,6 +14,7 @@ from tagger.routes.deps import get_source_or_404
 from tagger.templating import templates
 
 router = APIRouter(prefix="/sources", tags=["sources"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("")
@@ -38,6 +40,8 @@ def add_source(request: Request, path: str = Form(...), display_name: str = Form
             status_code=400,
         )
 
+    logger.info("source added id=%s path=%s name=%s", source.id, source.path, source.display_name)
+
     # Initial scan so the browse view isn't empty on first visit.
     conn = db.connect(config.resolve_db_path(source))
     try:
@@ -51,6 +55,7 @@ def add_source(request: Request, path: str = Form(...), display_name: str = Form
 @router.post("/{source_id}/rescan")
 def rescan_source(source_id: str):
     source = get_source_or_404(source_id)
+    logger.info("rescan requested source_id=%s", source_id)
     conn = db.connect(config.resolve_db_path(source))
     try:
         scanner.rescan(conn, Path(source.path))
@@ -63,4 +68,5 @@ def rescan_source(source_id: str):
 def delete_source(source_id: str, delete_db: bool = Form(False)):
     get_source_or_404(source_id)
     config.remove_source(source_id, delete_db=delete_db)
+    logger.info("source deleted id=%s delete_db=%s", source_id, delete_db)
     return RedirectResponse(url="/sources", status_code=303)

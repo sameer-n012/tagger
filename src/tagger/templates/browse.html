@@ -137,7 +137,7 @@
             <tr class="file-row" data-file-id="{{ file.id }}" data-index="{{ loop.index0 }}"
                 onclick="taggerHandleRowClick(event, this)">
               <td class="file-name">
-                {{ "🖼" if entry.is_image else "📄" }}
+                {{ "🖼" if entry.is_image else ("🎬" if entry.is_video else "📄") }}
                 {{ file.relative_path if q else file.relative_path.split('/')[-1] }}
               </td>
               <td class="file-size">{{ "%.1f"|format(file.size_bytes / 1024) }} KB</td>

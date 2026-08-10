@@ -8,6 +8,7 @@ disambiguation") for the algorithm this implements.
 from __future__ import annotations
 
 import hashlib
+import logging
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -17,6 +18,8 @@ from tagger import db
 from tagger.models import FileStatus, ScanSummary
 
 _HASH_CHUNK_SIZE = 1024 * 1024
+
+logger = logging.getLogger(__name__)
 
 
 def compute_file_hash(path: Path) -> str:
@@ -141,6 +144,12 @@ def rescan(conn: sqlite3.Connection, root: Path) -> ScanSummary:
 
     db.set_meta(conn, "last_scan_at", now)
     conn.commit()
+
+    logger.info(
+        "scanned root=%s new=%d moved=%d missing=%d purged=%d unchanged=%d",
+        root, summary.new_count, summary.moved_count, summary.missing_count,
+        summary.purged_count, summary.unchanged_count,
+    )
     return summary
 
 

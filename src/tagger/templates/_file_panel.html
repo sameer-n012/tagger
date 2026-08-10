@@ -2,6 +2,8 @@
   <div class="record-preview">
     {% if is_image %}
       <img src="/sources/{{ source.id }}/files/{{ file.id }}/raw" alt="{{ file.relative_path }}">
+    {% elif is_video %}
+      <video src="/sources/{{ source.id }}/files/{{ file.id }}/raw" controls preload="metadata" muted></video>
     {% else %}
       <span class="file-glyph">📄</span>
     {% endif %}

@@ -155,6 +155,26 @@ def test_preview_and_raw_image_serving(
     assert r.headers["content-type"] == "image/png"
 
 
+def test_preview_and_raw_video_serving(
+    client: TestClient, source_dir: Path, data_dir: Path
+) -> None:
+    (source_dir / "clip.mp4").write_bytes(b"fake-mp4-bytes")
+    source_id = _add_source(client, source_dir)
+    video_id = _file_id(data_dir, source_id, "clip.mp4")
+
+    r = client.get(f"/sources/{source_id}/files/{video_id}/preview", headers={"HX-Request": "true"})
+    assert r.status_code == 200
+    assert "<video" in r.text
+    assert f"/files/{video_id}/raw" in r.text
+
+    r = client.get(f"/sources/{source_id}/files/{video_id}/raw")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "video/mp4"
+
+    r = client.get(f"/sources/{source_id}/browse")
+    assert "🎬" in r.text
+
+
 def test_missing_file_appears_and_can_be_purged(
     client: TestClient, source_dir: Path, data_dir: Path
 ) -> None:

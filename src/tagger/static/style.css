@@ -365,7 +365,8 @@ a.tag-chip:hover { text-decoration: none; border-color: var(--moss); color: var(
   min-height: 8rem;
   overflow: hidden;
 }
-.record-preview img { max-width: 100%; max-height: 16rem; display: block; }
+.record-preview img,
+.record-preview video { max-width: 100%; max-height: 16rem; display: block; }
 .record-preview .file-glyph { font-size: 2.2rem; color: var(--ink-muted); }
 
 .record-title {

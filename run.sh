@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# Runs the tagger web app in the background with nohup, logging to
-# logs/app.log. Use stop.sh (or `kill $(cat logs/app.pid)`) to stop it.
+# Runs the tagger web app in the background with nohup. Application logging
+# (requests + tag/source/scan actions, via the stdlib logging module) goes
+# to logs/app.log; uvicorn's own startup/crash output goes to logs/app.out.
+# Stop it with `kill $(cat logs/app.pid)`.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 mkdir -p logs
 
-nohup uv run uvicorn tagger.main:app --host 127.0.0.1 --port 3051 >> logs/app.log 2>&1 &
+nohup uv run uvicorn tagger.main:app --host 127.0.0.1 --port 3051 --no-access-log >> logs/app.out 2>&1 &
 echo $! > logs/app.pid
 
-echo "tagger started (pid $(cat logs/app.pid)) at http://127.0.0.1:3500 — logging to logs/app.log"
+echo "tagger started (pid $(cat logs/app.pid)) at http://127.0.0.1:3051"
+echo "app log: logs/app.log — startup/crash output: logs/app.out"
