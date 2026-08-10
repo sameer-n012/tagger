@@ -12,6 +12,7 @@ pattern that pyright can't fully resolve even in upstream httpx, producing
 unrelated to this file's own code.
 """
 
+import re
 import time
 from pathlib import Path
 
@@ -85,6 +86,25 @@ def test_root_redirects_to_sources(client: TestClient) -> None:
     r = client.get("/", follow_redirects=False)
     assert r.status_code in (302, 307)
     assert r.headers["location"] == "/sources"
+
+
+def test_stylesheet_link_is_cache_busted(client: TestClient) -> None:
+    # Regression: without a version query param, browsers can serve a stale
+    # cached style.css on ordinary navigation, silently reviving fixed CSS
+    # bugs (e.g. the scan-overlay [hidden] override below).
+    r = client.get("/sources")
+    assert re.search(r'/static/style\.css\?v=\d+', r.text)
+
+
+def test_scan_overlay_hidden_attribute_is_not_overridden_by_css() -> None:
+    # Regression: `.scan-overlay { display: flex }` alone silently beats the
+    # UA stylesheet's `[hidden] { display: none }` (author origin always
+    # wins over user-agent origin, regardless of specificity), so toggling
+    # `hidden` would have no visual effect without this rule.
+    css = (
+        Path(__file__).resolve().parents[1] / "src" / "tagger" / "static" / "style.css"
+    ).read_text(encoding="utf-8")
+    assert ".scan-overlay[hidden]" in css
 
 
 def test_add_source_scans_and_shows_files(client: TestClient, source_dir: Path) -> None:

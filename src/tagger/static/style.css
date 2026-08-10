@@ -472,6 +472,14 @@ dialog::backdrop { background: rgba(36, 38, 31, 0.35); }
   background: rgba(24, 25, 20, 0.55);
   cursor: wait;
 }
+/* An author `display` declaration on the same element always wins over the
+   UA stylesheet's `[hidden] { display: none }`, regardless of specificity
+   (origin beats specificity in the cascade) -- without this, toggling the
+   `hidden` attribute (from Jinja or `overlay.hidden = ...` in JS) would be
+   silently ignored and the overlay would stay laid out permanently. */
+.scan-overlay[hidden] {
+  display: none;
+}
 .scan-overlay-box {
   display: flex;
   flex-direction: column;
