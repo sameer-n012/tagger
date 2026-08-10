@@ -253,6 +253,18 @@
 
     var currentPath = workspace.dataset.path;
     var currentQuery = workspace.dataset.q;
+
+    // Bulk add/remove-tag is a plain form POST -> redirect -> full page
+    // load, which otherwise resets the file table's scroll position to the
+    // top. Stash it before submitting and restore it once the reloaded
+    // page (same source/path/q) comes back.
+    var panelMain = document.querySelector('.panel-main');
+    var scrollKey = 'tagger-scroll:' + sourceId + ':' + currentPath + ':' + currentQuery;
+    var savedScroll = sessionStorage.getItem(scrollKey);
+    if (savedScroll !== null) {
+      panelMain.scrollTop = parseInt(savedScroll, 10);
+      sessionStorage.removeItem(scrollKey);
+    }
     var fileOrder = Array.prototype.map.call(
       document.querySelectorAll('#file-table-body .file-row'),
       function (row) { return Number(row.dataset.fileId); }
@@ -316,6 +328,7 @@
     var bulkForm = document.getElementById('bulk-form');
     if (bulkForm) {
       bulkForm.addEventListener('submit', function () {
+        sessionStorage.setItem(scrollKey, String(panelMain.scrollTop));
         bulkForm.querySelectorAll('input[name="file_ids"]').forEach(function (el) { el.remove(); });
         selectedIds.forEach(function (id) {
           var input = document.createElement('input');
