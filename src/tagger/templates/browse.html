@@ -96,6 +96,8 @@
         {% else %}
           in the whole source
         {% endif %}
+        <a class="btn btn-quiet"
+           href="/sources/{{ source.id }}/browse{% if path %}?path={{ path|urlencode }}{% endif %}">Clear search</a>
       </p>
     {% endif %}
 

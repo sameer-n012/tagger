@@ -207,6 +207,20 @@ def test_tag_then_search_matches(client: TestClient, source_dir: Path, data_dir:
     assert "a.txt" not in r.text
 
 
+def test_clear_search_link_preserves_folder_but_drops_query(
+    client: TestClient, source_dir: Path
+) -> None:
+    source_id = _add_source(client, source_dir)
+
+    r = client.get(f"/sources/{source_id}/browse", params={"q": "vacation", "path": "photos"})
+    assert r.status_code == 200
+    assert f'href="/sources/{source_id}/browse?path=photos">Clear search</a>' in r.text
+
+    r = client.get(f"/sources/{source_id}/browse", params={"q": "vacation"})
+    assert r.status_code == 200
+    assert f'href="/sources/{source_id}/browse">Clear search</a>' in r.text
+
+
 def test_search_is_scoped_to_current_path_and_subdirectories(
     client: TestClient, source_dir: Path, data_dir: Path
 ) -> None:

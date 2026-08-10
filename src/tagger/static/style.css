@@ -104,6 +104,7 @@ input[type="text"], input[type="search"], select {
 input[type="text"]:focus, input[type="search"]:focus, select:focus { background: var(--paper-raised); }
 
 .hint { color: var(--ink-muted); font-size: 0.85rem; }
+.hint .btn { margin-left: 0.4rem; padding: 0.15rem 0.5rem; font-size: 0.78rem; }
 .error-banner {
   color: var(--brick);
   background: color-mix(in srgb, var(--brick) 10%, transparent);
@@ -312,7 +313,11 @@ a.tag-chip:hover { text-decoration: none; border-color: var(--moss); color: var(
   border: 1px solid var(--hairline);
   border-radius: 4px;
   background: var(--paper-raised);
+  box-shadow: var(--shadow);
   flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 .bulk-bar input[type="text"] { font-size: 0.78rem; min-width: 10rem; flex: 1; }
 .select-all { display: flex; gap: 0.3rem; align-items: center; font-size: 0.8rem; color: var(--ink-muted); }
