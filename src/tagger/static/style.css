@@ -145,6 +145,17 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus { background:
 .tag-chip.is-supertag::before { border-color: var(--ochre); }
 a.tag-chip:hover { text-decoration: none; border-color: var(--moss); color: var(--moss); }
 
+.untagged-chip {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin: 0.5rem 0;
+  color: var(--ink-muted);
+  font-style: italic;
+}
+.untagged-chip::before { border-color: var(--brick); border-style: dashed; }
+.untagged-chip:hover { color: var(--brick); border-color: var(--brick); }
+
 .chip-remove {
   border: none;
   background: none;

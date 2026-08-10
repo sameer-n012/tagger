@@ -103,6 +103,15 @@ def test_bulk_tag_and_untag_files(conn: sqlite3.Connection) -> None:
     assert {t.id for t in tags.tags_for_file(conn, f2)} == {tag.id}
 
 
+def test_untagged_file_ids(conn: sqlite3.Connection) -> None:
+    tag = tags.create_tag(conn, "keepsake")
+    tagged = _make_file(conn, "a.txt")
+    untagged = _make_file(conn, "b.txt")
+    tags.tag_files(conn, [tagged], [tag.id])
+
+    assert tags.untagged_file_ids(conn) == {untagged}
+
+
 def test_remove_last_supertag_member_clears_flag(conn: sqlite3.Connection) -> None:
     super_tag = tags.create_tag(conn, "super")
     member = tags.create_tag(conn, "member")

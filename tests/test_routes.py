@@ -207,6 +207,22 @@ def test_tag_then_search_matches(client: TestClient, source_dir: Path, data_dir:
     assert "a.txt" not in r.text
 
 
+def test_untagged_search_matches_only_files_with_no_tags(
+    client: TestClient, source_dir: Path, data_dir: Path
+) -> None:
+    source_id = _add_source(client, source_dir)
+    file_id = _file_id(data_dir, source_id, "a.txt")
+    client.post(
+        f"/sources/{source_id}/files/{file_id}/tags",
+        data={"tag_name": "keepsake", "path": "", "q": ""},
+    )
+
+    r = client.get(f"/sources/{source_id}/browse", params={"q": "untagged"})
+    assert r.status_code == 200
+    assert "b.png" in r.text
+    assert "a.txt" not in r.text
+
+
 def test_htmx_tag_add_returns_partial_not_full_page(
     client: TestClient, source_dir: Path, data_dir: Path
 ) -> None:

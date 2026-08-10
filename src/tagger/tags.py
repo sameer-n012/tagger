@@ -198,3 +198,11 @@ def file_ids_with_any_tag(conn: sqlite3.Connection, tag_ids: set[int]) -> set[in
         tuple(tag_ids),
     ).fetchall()
     return {row["file_id"] for row in rows}
+
+
+def untagged_file_ids(conn: sqlite3.Connection) -> set[int]:
+    """Files with zero tags -- backs the reserved `untagged` search term."""
+    rows = conn.execute(
+        "SELECT id FROM files WHERE id NOT IN (SELECT DISTINCT file_id FROM file_tags)"
+    ).fetchall()
+    return {row["id"] for row in rows}

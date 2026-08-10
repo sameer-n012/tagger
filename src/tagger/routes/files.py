@@ -88,6 +88,9 @@ def _list_directory(
     return sorted(subdirs), direct_files
 
 
+_UNTAGGED_TERM = "untagged"
+
+
 def _search_files(conn: sqlite3.Connection, query: str) -> list[sqlite3.Row]:
     expr = search_module.parse(query)
     universe = {
@@ -95,6 +98,14 @@ def _search_files(conn: sqlite3.Connection, query: str) -> list[sqlite3.Row]:
     }
 
     def resolver(tag_name: str) -> set[int]:
+        # Reserved keyword for "no tags at all" -- unless the user has
+        # actually created a real tag named "untagged", in which case that
+        # takes precedence and behaves like any other tag search.
+        if (
+            tag_name.strip().lower() == _UNTAGGED_TERM
+            and tags_module.get_tag_by_name(conn, tag_name) is None
+        ):
+            return tags_module.untagged_file_ids(conn)
         tag_ids = tags_module.resolve_search_tag_ids(conn, tag_name)
         return tags_module.file_ids_with_any_tag(conn, tag_ids)
 

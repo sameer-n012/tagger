@@ -17,7 +17,7 @@
 
     <form method="get" action="/sources/{{ source.id }}/browse" class="search-form">
       <input type="search" name="q" value="{{ q }}"
-             placeholder='vacation and (2023 or 2024) and not private'>
+             placeholder='vacation and (2023 or 2024) and not private, or "untagged"'>
     </form>
 
     <button type="button" class="icon-btn" title="Missing files"
@@ -36,6 +36,7 @@
     <div class="eyebrow">Index</div>
     <input type="text" class="tag-filter" placeholder="Filter tags…"
            oninput="taggerFilterTags(this.value)">
+    <a class="tag-chip untagged-chip" href="/sources/{{ source.id }}/browse?q=untagged">Untagged files</a>
     <ul class="tag-index-list" id="tag-index-list">
       {% for tag in all_tags %}
         <li>
