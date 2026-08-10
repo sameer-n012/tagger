@@ -139,14 +139,10 @@
                 onclick="taggerHandleRowClick(event, this)">
               <td class="file-name">
                 {{ "🖼" if entry.is_image else ("🎬" if entry.is_video else "📄") }}
-                {{ file.relative_path if q else file.relative_path.split('/')[-1] }}
+                <span class="file-name-text">{{ file.relative_path if q else file.relative_path.split('/')[-1] }}</span>
               </td>
               <td class="file-size">{{ "%.1f"|format(file.size_bytes / 1024) }} KB</td>
-              <td class="file-tags">
-                {% for tag in entry.tags %}
-                  <span class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}">{{ tag.name }}</span>
-                {% endfor %}
-              </td>
+              <td class="file-tag-count">{{ entry.tags|length }}</td>
             </tr>
           {% endfor %}
         </tbody>

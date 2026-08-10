@@ -323,7 +323,7 @@ a.tag-chip:hover { text-decoration: none; border-color: var(--moss); color: var(
   flex: none;
 }
 
-.file-table { width: 100%; border-collapse: collapse; }
+.file-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
 .file-table th {
   text-align: left;
   font-family: var(--font-mono);
@@ -339,9 +339,12 @@ a.tag-chip:hover { text-decoration: none; border-color: var(--moss); color: var(
 .file-row { cursor: pointer; }
 .file-row:hover { background: var(--paper-raised); }
 .file-row.is-selected { background: var(--paper-sunken); }
-.file-name { display: flex; align-items: center; gap: 0.4rem; }
+.file-table th:nth-child(2), .file-table td.file-size { width: 5.5rem; }
+.file-table th:nth-child(3), .file-table td.file-tag-count { width: 3.5rem; }
+.file-name { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.file-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .file-size, .file-modified { font-family: var(--font-mono); color: var(--ink-muted); white-space: nowrap; font-size: 0.78rem; }
-.file-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; min-height: 1.4rem; }
+.file-tag-count { font-family: var(--font-mono); color: var(--ink-muted); font-size: 0.78rem; text-align: right; }
 
 /* -------------------------------------------------- right panel: record */
 
