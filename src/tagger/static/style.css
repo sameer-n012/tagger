@@ -374,6 +374,7 @@ a.tag-chip:hover { text-decoration: none; border-color: var(--moss); color: var(
 }
 
 .record { padding: 0.9rem 1rem; display: flex; flex-direction: column; gap: 0.9rem; }
+.record-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .record-preview {
   border: 1px solid var(--hairline);
   border-radius: 4px;

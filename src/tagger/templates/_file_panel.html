@@ -58,5 +58,11 @@
     </form>
   </div>
 
-  <a class="btn" href="/sources/{{ source.id }}/files/{{ file.id }}/raw" target="_blank" rel="noopener">Open file</a>
+  <div class="record-actions">
+    <a class="btn" href="/sources/{{ source.id }}/files/{{ file.id }}/raw" target="_blank" rel="noopener">Open file</a>
+    <form action="/sources/{{ source.id }}/files/{{ file.id }}/reveal" method="post"
+          hx-post="/sources/{{ source.id }}/files/{{ file.id }}/reveal" hx-swap="none" class="inline-form">
+      <button type="submit" class="btn">Show in Finder</button>
+    </form>
+  </div>
 </div>

@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 
 from tagger import config, db
 from tagger.main import app
+from tagger.routes import files as files_routes
 
 
 @pytest.fixture
@@ -332,6 +333,37 @@ def test_preview_and_raw_image_serving(
     r = client.get(f"/sources/{source_id}/files/{image_id}/raw")
     assert r.status_code == 200
     assert r.headers["content-type"] == "image/png"
+
+
+def test_reveal_file_invokes_platform_command(
+    client: TestClient, source_dir: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_id = _add_source(client, source_dir)
+    file_id = _file_id(data_dir, source_id, "a.txt")
+
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        files_routes.subprocess, "run", lambda cmd, **kwargs: calls.append(cmd)
+    )
+
+    r = client.post(f"/sources/{source_id}/files/{file_id}/reveal")
+    assert r.status_code == 204
+    assert len(calls) == 1
+    assert str(source_dir / "a.txt") in calls[0]
+
+
+def test_reveal_file_rejects_missing_file(
+    client: TestClient, source_dir: Path, data_dir: Path
+) -> None:
+    source_id = _add_source(client, source_dir)
+    file_id = _file_id(data_dir, source_id, "a.txt")
+
+    (source_dir / "a.txt").unlink()
+    r = client.post(f"/sources/{source_id}/rescan", follow_redirects=False)
+    _wait_for_scan(client, source_id)
+
+    r = client.post(f"/sources/{source_id}/files/{file_id}/reveal")
+    assert r.status_code == 404
 
 
 def test_preview_and_raw_video_serving(

@@ -6,10 +6,12 @@ from __future__ import annotations
 import logging
 import mimetypes
 import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 
 from tagger import config, scan_status
@@ -263,10 +265,7 @@ def file_preview(
     return _render_file_panel(request, source, conn, file_id, path, q)
 
 
-@router.get("/files/{file_id}/raw")
-def file_raw(source_id: str, file_id: int, conn: Conn):
-    source = get_source_or_404(source_id)
-    file_row = _get_file_or_404(conn, file_id)
+def _resolve_active_file_path(source: SourceConfig, file_row: sqlite3.Row) -> Path:
     if file_row["status"] != "active":
         raise HTTPException(status_code=404, detail="File is missing on disk")
 
@@ -276,8 +275,43 @@ def file_raw(source_id: str, file_id: int, conn: Conn):
         raise HTTPException(status_code=400, detail="Invalid file path")
     if not candidate.is_file():
         raise HTTPException(status_code=404, detail="File not found on disk")
+    return candidate
 
-    return FileResponse(candidate)
+
+@router.get("/files/{file_id}/raw")
+def file_raw(source_id: str, file_id: int, conn: Conn):
+    source = get_source_or_404(source_id)
+    file_row = _get_file_or_404(conn, file_id)
+    return FileResponse(_resolve_active_file_path(source, file_row))
+
+
+def _reveal_command(path: Path) -> list[str]:
+    """Platform-specific way to pop the file's containing folder open with
+    the file selected, e.g. Finder on macOS."""
+    if sys.platform == "darwin":
+        return ["open", "-R", str(path)]
+    if sys.platform == "win32":
+        return ["explorer", f"/select,{path}"]
+    # No universal "select this file" equivalent on Linux desktops -- just
+    # open the containing folder.
+    return ["xdg-open", str(path.parent)]
+
+
+@router.post("/files/{file_id}/reveal")
+def reveal_file(source_id: str, file_id: int, conn: Conn) -> Response:
+    source = get_source_or_404(source_id)
+    file_row = _get_file_or_404(conn, file_id)
+    candidate = _resolve_active_file_path(source, file_row)
+
+    try:
+        subprocess.run(_reveal_command(candidate), check=False)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Couldn't open the system file explorer: {exc}"
+        ) from exc
+
+    logger.info("file revealed source_id=%s file_id=%s", source_id, file_id)
+    return Response(status_code=204)
 
 
 @router.post("/files/{file_id}/purge")
