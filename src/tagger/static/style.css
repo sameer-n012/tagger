@@ -114,6 +114,15 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus { background:
   font-size: 0.85rem;
   margin-bottom: 0.6rem;
 }
+.info-banner {
+  color: var(--moss);
+  background: color-mix(in srgb, var(--moss) 10%, transparent);
+  border: 1px solid var(--moss);
+  border-radius: 4px;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+  margin-bottom: 0.6rem;
+}
 
 /* -------------------------------------------------- specimen-label tag chip */
 
@@ -132,6 +141,11 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus { background:
   text-transform: uppercase;
   color: var(--ink);
   white-space: nowrap;
+}
+.tag-count {
+  color: var(--ink-muted);
+  font-weight: 400;
+  opacity: 0.85;
 }
 .tag-chip::before {
   content: "";
@@ -451,6 +465,7 @@ dialog::backdrop { background: rgba(36, 38, 31, 0.35); }
   padding: 0 1.25rem;
 }
 .page h1 { font-family: var(--font-display); font-weight: 600; font-size: 1.6rem; margin-bottom: 0.15rem; }
+.tag-toolbar { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.9rem 0 0.4rem; }
 .page-topbar {
   display: flex;
   align-items: center;

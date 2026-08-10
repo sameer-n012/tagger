@@ -207,6 +207,7 @@ def browse(
             "files": files_view,
             "all_tags": all_tags,
             "members_by_supertag": members_by_supertag,
+            "tag_counts": tags_module.tag_file_counts(conn),
             "missing_files": _missing_files(conn),
             "q": q,
             "search_error": search_error,

@@ -216,3 +216,54 @@ def untagged_file_ids(conn: sqlite3.Connection) -> set[int]:
         "SELECT id FROM files WHERE id NOT IN (SELECT DISTINCT file_id FROM file_tags)"
     ).fetchall()
     return {row["id"] for row in rows}
+
+
+def tag_file_counts(conn: sqlite3.Connection) -> dict[int, int]:
+    """Count of files each tag is *directly* applied to -- doesn't count
+    files that only match it via supertag implication."""
+    rows = conn.execute("SELECT tag_id, COUNT(*) AS c FROM file_tags GROUP BY tag_id").fetchall()
+    return {row["tag_id"]: row["c"] for row in rows}
+
+
+def unused_tag_ids(conn: sqlite3.Connection) -> set[int]:
+    """Tags with zero direct file applications -- what clean_unused_tags
+    removes. Being someone else's supertag member doesn't count as used."""
+    rows = conn.execute(
+        "SELECT id FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM file_tags)"
+    ).fetchall()
+    return {row["id"] for row in rows}
+
+
+def clean_unused_tags(conn: sqlite3.Connection) -> int:
+    """Delete every tag with zero direct file applications. Returns the
+    number of tags removed."""
+    tag_ids = unused_tag_ids(conn)
+    if not tag_ids:
+        return 0
+    placeholders = ",".join("?" for _ in tag_ids)
+    conn.execute(f"DELETE FROM tags WHERE id IN ({placeholders})", tuple(tag_ids))
+    conn.commit()
+    return len(tag_ids)
+
+
+def merge_implied_tags(conn: sqlite3.Connection) -> int:
+    """For every file, drop a direct tag application if another tag
+    directly applied to the same file already implies it (transitively, via
+    a supertag chain) -- the direct application is then redundant. Returns
+    the number of file_tags rows removed."""
+    removed = 0
+    file_ids = [row["file_id"] for row in conn.execute("SELECT DISTINCT file_id FROM file_tags")]
+    for file_id in file_ids:
+        direct_tag_ids = {
+            row["tag_id"]
+            for row in conn.execute("SELECT tag_id FROM file_tags WHERE file_id = ?", (file_id,))
+        }
+        for tag_id in direct_tag_ids:
+            implying_supertags = _upward_closure(conn, tag_id)
+            if implying_supertags & direct_tag_ids:
+                conn.execute(
+                    "DELETE FROM file_tags WHERE file_id = ? AND tag_id = ?", (file_id, tag_id)
+                )
+                removed += 1
+    conn.commit()
+    return removed

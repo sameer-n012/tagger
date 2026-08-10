@@ -17,6 +17,10 @@
       <p class="error-banner">{{ error }}</p>
     {% endif %}
 
+    {% if info %}
+      <p class="info-banner">{{ info }}</p>
+    {% endif %}
+
     <form method="post" action="/sources/{{ source.id }}/tags" class="stacked-form">
       <label>
         New tag name
@@ -25,11 +29,27 @@
       <button type="submit" class="btn btn-primary">Create tag</button>
     </form>
 
+    <div class="tag-toolbar">
+      <form method="post" action="/sources/{{ source.id }}/tags/clean-unused" class="inline-form"
+            onsubmit="return confirm('Delete every tag with no files tagged? This can\'t be undone.');">
+        <button type="submit" class="btn">Clean unused tags</button>
+      </form>
+      <form method="post" action="/sources/{{ source.id }}/tags/merge-implied" class="inline-form"
+            onsubmit="return confirm('Remove direct tag applications that are already implied by another tag on the same file? This can\'t be undone.');">
+        <button type="submit" class="btn">Merge implied tags</button>
+      </form>
+    </div>
+
+    <input type="text" class="tag-filter" placeholder="Filter tags…" oninput="taggerFilterManageTags(this.value)">
+
     <ul class="tag-manage-list">
       {% for tag in tags %}
-        <li class="tag-manage-row">
+        <li class="tag-manage-row" data-name="{{ tag.name|lower }}">
           <div class="tag-manage-header">
-            <span class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}">{{ tag.name }}</span>
+            <span class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}">
+              {{ tag.name }}
+              <span class="tag-count">{{ tag_counts.get(tag.id, 0) }}</span>
+            </span>
             {% if tag.is_supertag %}<span class="hint">supertag</span>{% endif %}
 
             <form method="post" action="/sources/{{ source.id }}/tags/{{ tag.id }}/rename" class="inline-form">
@@ -70,4 +90,30 @@
       {% endfor %}
     </ul>
   </div>
+
+  <script>
+    function taggerFilterManageTags(query) {
+      var q = query.trim().toLowerCase();
+      document.querySelectorAll('.tag-manage-list > li').forEach(function (li) {
+        li.hidden = Boolean(q) && (li.dataset.name || '').indexOf(q) === -1;
+      });
+    }
+
+    (function () {
+      // Every action on this page (rename, delete, add/remove implied tag,
+      // clean, merge) is a plain form POST -> redirect -> full page load,
+      // which otherwise resets scroll to the top every time.
+      var scrollKey = 'tagger-tags-scroll:{{ source.id }}';
+      var saved = sessionStorage.getItem(scrollKey);
+      if (saved !== null) {
+        window.scrollTo(0, parseInt(saved, 10));
+        sessionStorage.removeItem(scrollKey);
+      }
+      document.querySelectorAll('.page form').forEach(function (form) {
+        form.addEventListener('submit', function () {
+          sessionStorage.setItem(scrollKey, String(window.scrollY));
+        });
+      });
+    })();
+  </script>
 {% endblock %}

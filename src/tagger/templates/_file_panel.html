@@ -17,11 +17,27 @@
     <div class="record-meta-row"><span class="label">Modified</span><span class="value">{{ file.mtime }}</span></div>
   </div>
 
+  <div class="record-actions">
+    <a class="btn" href="/sources/{{ source.id }}/files/{{ file.id }}/raw" target="_blank" rel="noopener">Open file</a>
+    <form action="/sources/{{ source.id }}/files/{{ file.id }}/reveal" method="post"
+          hx-post="/sources/{{ source.id }}/files/{{ file.id }}/reveal" hx-swap="none" class="inline-form">
+      <button type="submit" class="btn">Show in Finder</button>
+    </form>
+  </div>
+
   <div>
     <div class="eyebrow">Tags</div>
     {% if error %}
       <p class="error-banner">{{ error }}</p>
     {% endif %}
+    <form action="/sources/{{ source.id }}/files/{{ file.id }}/tags" method="post"
+          hx-post="/sources/{{ source.id }}/files/{{ file.id }}/tags"
+          hx-target="#right-panel" hx-swap="innerHTML" class="add-tag-form">
+      <input type="hidden" name="path" value="{{ path }}">
+      <input type="hidden" name="q" value="{{ q }}">
+      <input type="text" name="tag_name" list="known-tags" placeholder="+ tag" required>
+      <button type="submit" class="btn">Add</button>
+    </form>
     <div class="record-tags">
       {% for tag in tags %}
         <div class="tag-entry">
@@ -48,21 +64,5 @@
         <span class="hint">Nothing tagged yet.</span>
       {% endfor %}
     </div>
-    <form action="/sources/{{ source.id }}/files/{{ file.id }}/tags" method="post"
-          hx-post="/sources/{{ source.id }}/files/{{ file.id }}/tags"
-          hx-target="#right-panel" hx-swap="innerHTML" class="add-tag-form">
-      <input type="hidden" name="path" value="{{ path }}">
-      <input type="hidden" name="q" value="{{ q }}">
-      <input type="text" name="tag_name" list="known-tags" placeholder="+ tag" required>
-      <button type="submit" class="btn">Add</button>
-    </form>
-  </div>
-
-  <div class="record-actions">
-    <a class="btn" href="/sources/{{ source.id }}/files/{{ file.id }}/raw" target="_blank" rel="noopener">Open file</a>
-    <form action="/sources/{{ source.id }}/files/{{ file.id }}/reveal" method="post"
-          hx-post="/sources/{{ source.id }}/files/{{ file.id }}/reveal" hx-swap="none" class="inline-form">
-      <button type="submit" class="btn">Show in Finder</button>
-    </form>
   </div>
 </div>

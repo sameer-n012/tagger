@@ -51,7 +51,10 @@
             {% endif %}
             <a class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}"
                data-name="{{ tag.name|lower }}"
-               href="/sources/{{ source.id }}/browse?q={{ tag.name }}&amp;path={{ path|urlencode }}">{{ tag.name }}</a>
+               href="/sources/{{ source.id }}/browse?q={{ tag.name }}&amp;path={{ path|urlencode }}">
+              {{ tag.name }}
+              <span class="tag-count">{{ tag_counts.get(tag.id, 0) }}</span>
+            </a>
           </div>
           {% if tag.is_supertag %}
             <ul class="implied-sublist" hidden>

@@ -29,7 +29,13 @@ def _safe_redirect(next_url: str, default: str) -> str:
 
 @router.get("")
 def list_tags_page(
-    request: Request, source_id: str, conn: Conn, path: str = "", q: str = "", error: str = ""
+    request: Request,
+    source_id: str,
+    conn: Conn,
+    path: str = "",
+    q: str = "",
+    error: str = "",
+    info: str = "",
 ):
     source = get_source_or_404(source_id)
     all_tags = tags_module.list_tags(conn)
@@ -43,8 +49,10 @@ def list_tags_page(
             "source": source,
             "tags": all_tags,
             "members_by_supertag": members_by_supertag,
+            "tag_counts": tags_module.tag_file_counts(conn),
             "back_url": browse_url(source_id, path, q),
             "error": error,
+            "info": info,
         },
     )
 
@@ -105,3 +113,21 @@ def remove_member(source_id: str, tag_id: int, member_id: int, conn: Conn):
         source_id, tag_id, member_id,
     )
     return RedirectResponse(url=f"/sources/{source_id}/tags", status_code=303)
+
+
+@router.post("/clean-unused")
+def clean_unused(source_id: str, conn: Conn):
+    removed = tags_module.clean_unused_tags(conn)
+    logger.info("cleaned unused tags source_id=%s removed=%d", source_id, removed)
+    message = f"Removed {removed} unused tag{'' if removed == 1 else 's'}."
+    target = with_query_param(f"/sources/{source_id}/tags", "info", message)
+    return RedirectResponse(url=target, status_code=303)
+
+
+@router.post("/merge-implied")
+def merge_implied(source_id: str, conn: Conn):
+    removed = tags_module.merge_implied_tags(conn)
+    logger.info("merged implied tags source_id=%s removed=%d", source_id, removed)
+    message = f"Removed {removed} redundant tag application{'' if removed == 1 else 's'}."
+    target = with_query_param(f"/sources/{source_id}/tags", "info", message)
+    return RedirectResponse(url=target, status_code=303)

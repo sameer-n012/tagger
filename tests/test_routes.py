@@ -458,6 +458,70 @@ def test_supertag_workflow_via_tags_page(
     assert "a.txt" in r.text
 
 
+def test_manage_tags_page_shows_counts_and_clean_merge_buttons(
+    client: TestClient, source_dir: Path, data_dir: Path
+) -> None:
+    source_id = _add_source(client, source_dir)
+    for name in ("used", "unused"):
+        client.post(f"/sources/{source_id}/tags", data={"name": name})
+    file_id = _file_id(data_dir, source_id, "a.txt")
+    client.post(
+        f"/sources/{source_id}/files/{file_id}/tags",
+        data={"tag_name": "used", "path": "", "q": ""},
+    )
+
+    r = client.get(f"/sources/{source_id}/tags")
+    assert r.status_code == 200
+    assert "tag-count" in r.text
+    assert f'action="/sources/{source_id}/tags/clean-unused"' in r.text
+    assert f'action="/sources/{source_id}/tags/merge-implied"' in r.text
+
+    r = client.post(f"/sources/{source_id}/tags/clean-unused", follow_redirects=False)
+    assert r.status_code == 303
+    assert "info=" in r.headers["location"]
+
+    r = client.get(f"/sources/{source_id}/tags")
+    assert "used" in r.text
+    assert ">unused<" not in r.text
+
+
+def test_merge_implied_route_removes_redundant_direct_tag(
+    client: TestClient, source_dir: Path, data_dir: Path
+) -> None:
+    source_id = _add_source(client, source_dir)
+    for name in ("trip", "travel"):
+        client.post(f"/sources/{source_id}/tags", data={"name": name})
+
+    source = config.get_source(source_id, data_dir=data_dir)
+    assert source is not None
+    conn = db.connect(config.resolve_db_path(source, data_dir))
+    trip_id = conn.execute("SELECT id FROM tags WHERE name = 'trip'").fetchone()["id"]
+    travel_id = conn.execute("SELECT id FROM tags WHERE name = 'travel'").fetchone()["id"]
+    conn.close()
+    client.post(f"/sources/{source_id}/tags/{trip_id}/members", data={"member_tag_id": travel_id})
+
+    file_id = _file_id(data_dir, source_id, "a.txt")
+    client.post(
+        f"/sources/{source_id}/files/{file_id}/tags",
+        data={"tag_name": "trip", "path": "", "q": ""},
+    )
+    client.post(
+        f"/sources/{source_id}/files/{file_id}/tags",
+        data={"tag_name": "travel", "path": "", "q": ""},
+    )
+
+    r = client.post(f"/sources/{source_id}/tags/merge-implied", follow_redirects=False)
+    assert r.status_code == 303
+
+    conn = db.connect(config.resolve_db_path(source, data_dir))
+    remaining = {
+        row["tag_id"]
+        for row in conn.execute("SELECT tag_id FROM file_tags WHERE file_id = ?", (file_id,))
+    }
+    conn.close()
+    assert remaining == {trip_id}
+
+
 def test_sources_page_defaults_path_to_home(client: TestClient) -> None:
     r = client.get("/sources")
     assert r.status_code == 200

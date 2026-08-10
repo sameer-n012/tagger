@@ -124,6 +124,49 @@ def test_untagged_file_ids(conn: sqlite3.Connection) -> None:
     assert tags.untagged_file_ids(conn) == {untagged}
 
 
+def test_tag_file_counts(conn: sqlite3.Connection) -> None:
+    tag = tags.create_tag(conn, "keepsake")
+    unused = tags.create_tag(conn, "unused")
+    f1 = _make_file(conn, "a.txt")
+    f2 = _make_file(conn, "b.txt")
+    tags.tag_files(conn, [f1, f2], [tag.id])
+
+    counts = tags.tag_file_counts(conn)
+    assert counts[tag.id] == 2
+    assert unused.id not in counts
+
+
+def test_clean_unused_tags_removes_only_tags_with_no_files(conn: sqlite3.Connection) -> None:
+    used = tags.create_tag(conn, "used")
+    unused = tags.create_tag(conn, "unused")
+    f1 = _make_file(conn, "a.txt")
+    tags.tag_files(conn, [f1], [used.id])
+
+    assert tags.unused_tag_ids(conn) == {unused.id}
+    removed = tags.clean_unused_tags(conn)
+    assert removed == 1
+    assert tags.get_tag(conn, unused.id) is None
+    assert tags.get_tag(conn, used.id) is not None
+
+
+def test_merge_implied_tags_drops_redundant_direct_applications(
+    conn: sqlite3.Connection,
+) -> None:
+    super_tag = tags.create_tag(conn, "trip")
+    member = tags.create_tag(conn, "travel")
+    unrelated = tags.create_tag(conn, "keepsake")
+    tags.add_supertag_member(conn, super_tag.id, member.id)
+
+    f1 = _make_file(conn, "a.txt")
+    # travel is redundant here since trip already implies it.
+    tags.tag_files(conn, [f1], [super_tag.id, member.id, unrelated.id])
+
+    removed = tags.merge_implied_tags(conn)
+    assert removed == 1
+    remaining = {t.id for t in tags.tags_for_file(conn, f1)}
+    assert remaining == {super_tag.id, unrelated.id}
+
+
 def test_remove_last_supertag_member_clears_flag(conn: sqlite3.Connection) -> None:
     super_tag = tags.create_tag(conn, "super")
     member = tags.create_tag(conn, "member")
