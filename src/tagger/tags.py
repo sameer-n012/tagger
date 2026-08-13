@@ -21,6 +21,16 @@ keyword (see files.py's _search_files) for "has zero tags"; allowing a real
 tag with that name would make it ambiguous which meaning a search for it
 has."""
 
+TAG_COLORS = [
+    "rust", "amber", "gold", "olive", "fern", "jade",
+    "teal", "azure", "indigo", "violet", "orchid", "rose",
+]
+"""The 12 selectable tag colors, in swatch-picker display order. Each name
+is a CSS custom property pair (--tag-<name>, light + dark value) defined in
+style.css -- deliberately separate from the --moss/--ochre/--brick UI-role
+accents so a tag's color is never visually confused with e.g. the
+is-supertag indicator."""
+
 
 def _row_to_tag(row: sqlite3.Row) -> Tag:
     return Tag(
@@ -29,6 +39,7 @@ def _row_to_tag(row: sqlite3.Row) -> Tag:
         is_supertag=bool(row["is_supertag"]),
         color=row["color"],
         created_at=row["created_at"],
+        description=row["description"],
     )
 
 
@@ -42,6 +53,8 @@ def create_tag(
         raise ValueError(f'"{name}" is a reserved name and can\'t be used for a tag')
     if get_tag_by_name(conn, name) is not None:
         raise ValueError(f"Tag already exists: {name}")
+    if color and color not in TAG_COLORS:
+        raise ValueError(f"Unknown tag color: {color}")
     now = db.utcnow_iso()
     cur = conn.execute(
         "INSERT INTO tags (name, is_supertag, color, created_at) VALUES (?, ?, ?, ?)",
@@ -75,6 +88,26 @@ def rename_tag(conn: sqlite3.Connection, tag_id: int, new_name: str) -> None:
     if existing is not None and existing.id != tag_id:
         raise ValueError(f"Tag already exists: {new_name}")
     conn.execute("UPDATE tags SET name = ? WHERE id = ?", (new_name, tag_id))
+    conn.commit()
+
+
+def set_tag_description(conn: sqlite3.Connection, tag_id: int, description: str) -> None:
+    """description='' clears it back to no description (stored as NULL, so
+    it's indistinguishable from a tag that never had one)."""
+    conn.execute(
+        "UPDATE tags SET description = ? WHERE id = ?", (description or None, tag_id)
+    )
+    conn.commit()
+
+
+def set_tag_color(conn: sqlite3.Connection, tag_id: int, color: str) -> None:
+    """color='' clears it back to no color. Any other value must be one of
+    TAG_COLORS -- these become CSS custom property names via string
+    interpolation in the templates, so only ever accepting a known-safe set
+    here is load-bearing, not just validation."""
+    if color and color not in TAG_COLORS:
+        raise ValueError(f"Unknown tag color: {color}")
+    conn.execute("UPDATE tags SET color = ? WHERE id = ?", (color or None, tag_id))
     conn.commit()
 
 

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}tagger — settings{% endblock %}
+
+{% block body %}
+  <header class="page-topbar">
+    <a class="brand" href="/sources">tagger</a>
+    <a href="{{ back_url }}" style="margin-left:auto;">Back</a>
+  </header>
+
+  <div class="page">
+    <div class="eyebrow">Settings</div>
+    <h1>Settings</h1>
+
+    {% if error %}
+      <p class="error-banner">{{ error }}</p>
+    {% endif %}
+
+    <fieldset class="settings-group">
+      <legend class="eyebrow">Appearance</legend>
+      <form method="post" action="/settings" class="theme-picker">
+        <input type="hidden" name="next" value="{{ next }}">
+        <label class="theme-option">
+          <input type="radio" name="theme" value="system" {% if current_theme == "system" %}checked{% endif %}
+                 onchange="this.form.submit()">
+          System
+          <span class="hint">Follow your OS/browser's light or dark setting.</span>
+        </label>
+        <label class="theme-option">
+          <input type="radio" name="theme" value="light" {% if current_theme == "light" %}checked{% endif %}
+                 onchange="this.form.submit()">
+          Light
+        </label>
+        <label class="theme-option">
+          <input type="radio" name="theme" value="dark" {% if current_theme == "dark" %}checked{% endif %}
+                 onchange="this.form.submit()">
+          Dark
+        </label>
+      </form>
+    </fieldset>
+  </div>
+{% endblock %}

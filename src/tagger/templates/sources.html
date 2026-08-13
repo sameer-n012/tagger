@@ -3,6 +3,9 @@
 {% block body %}
   <header class="page-topbar">
     <a class="brand" href="/sources">tagger</a>
+    <a class="icon-btn" style="margin-left:auto;"
+       href="/settings?next={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else '')) | urlencode }}"
+       title="Settings">⚙</a>
   </header>
 
   <div class="page">

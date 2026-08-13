@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS tags (
     name         TEXT NOT NULL UNIQUE,
     is_supertag  INTEGER NOT NULL DEFAULT 0 CHECK (is_supertag IN (0, 1)),
     color        TEXT,
+    description  TEXT,
     created_at   TEXT NOT NULL
 );
 
@@ -93,6 +94,12 @@ def connect(db_path: Path) -> sqlite3.Connection:
 
 def _init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA_SQL)
+    # CREATE TABLE IF NOT EXISTS only applies to brand-new databases -- a
+    # database created before the `description` column existed needs it
+    # added explicitly.
+    existing_columns = {row["name"] for row in conn.execute("PRAGMA table_info(tags)")}
+    if "description" not in existing_columns:
+        conn.execute("ALTER TABLE tags ADD COLUMN description TEXT")
     if get_meta(conn, "schema_version") is None:
         set_meta(conn, "schema_version", SCHEMA_VERSION)
     if get_meta(conn, "missing_retention_days") is None:

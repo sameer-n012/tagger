@@ -48,6 +48,14 @@ def with_query_param(url: str, key: str, value: str) -> str:
     return urlunsplit((scheme, netloc, path, urlencode(params), fragment))
 
 
+def safe_redirect(next_url: str, default: str) -> str:
+    """Only ever redirect to a same-origin path, never an attacker-supplied
+    absolute/protocol-relative URL (open-redirect guard)."""
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        return next_url
+    return default
+
+
 def wants_partial(request: Request) -> bool:
     """True when the request came from htmx (see hx-* attributes) rather
     than a plain browser navigation -- callers use this to choose between

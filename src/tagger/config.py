@@ -40,8 +40,13 @@ class SourceConfig(BaseModel):
     created_at: str
 
 
+THEMES = {"system", "light", "dark"}
+DEFAULT_THEME = "system"
+
+
 class AppConfig(BaseModel):
     sources: list[SourceConfig] = Field(default_factory=lambda: [])
+    theme: str = DEFAULT_THEME
 
 
 def load_config(data_dir: Path | None = None) -> AppConfig:
@@ -125,3 +130,16 @@ def remove_source(
 def resolve_db_path(source: SourceConfig, data_dir: Path | None = None) -> Path:
     data_dir = data_dir or get_data_dir()
     return data_dir / source.db_file
+
+
+def get_theme(data_dir: Path | None = None) -> str:
+    return load_config(data_dir).theme
+
+
+def set_theme(theme: str, data_dir: Path | None = None) -> None:
+    if theme not in THEMES:
+        raise ValueError(f"Unknown theme: {theme}")
+    data_dir = data_dir or get_data_dir()
+    config = load_config(data_dir)
+    config.theme = theme
+    save_config(config, data_dir)

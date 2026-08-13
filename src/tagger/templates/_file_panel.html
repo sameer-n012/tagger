@@ -41,7 +41,9 @@
     <div class="record-tags">
       {% for tag in tags %}
         <div class="tag-entry">
-          <span class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}">
+          <span class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %} {% if tag.color %}has-color{% endif %}"
+                {% if tag.description %}title="{{ tag.description }}"{% endif %}
+                {% if tag.color %}style="--chip-color: var(--tag-{{ tag.color }});"{% endif %}>
             {{ tag.name }}
             <form action="/sources/{{ source.id }}/files/{{ file.id }}/tags/{{ tag.id }}/delete" method="post"
                   hx-post="/sources/{{ source.id }}/files/{{ file.id }}/tags/{{ tag.id }}/delete"
@@ -55,7 +57,9 @@
             <div class="implied-tags">
               <span class="implied-label">implies</span>
               {% for member in members_by_supertag[tag.id] %}
-                <span class="implied-tag">{{ member.name }}</span>
+                <span class="implied-tag {% if member.color %}has-color{% endif %}"
+                      {% if member.description %}title="{{ member.description }}"{% endif %}
+                      {% if member.color %}style="--chip-color: var(--tag-{{ member.color }});"{% endif %}>{{ member.name }}</span>
               {% endfor %}
             </div>
           {% endif %}

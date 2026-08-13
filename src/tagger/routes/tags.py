@@ -14,6 +14,7 @@ from tagger.routes.deps import (
     browse_url,
     get_conn,
     get_source_or_404,
+    safe_redirect,
     wants_partial,
     with_query_param,
 )
@@ -23,14 +24,6 @@ router = APIRouter(prefix="/sources/{source_id}/tags", tags=["tags"])
 logger = logging.getLogger(__name__)
 
 Conn = Annotated[sqlite3.Connection, Depends(get_conn)]
-
-
-def _safe_redirect(next_url: str, default: str) -> str:
-    """Only ever redirect to a same-origin path, never an attacker-supplied
-    absolute/protocol-relative URL (open-redirect guard)."""
-    if next_url.startswith("/") and not next_url.startswith("//"):
-        return next_url
-    return default
 
 
 def _render_manage_tags(
@@ -54,6 +47,7 @@ def _render_manage_tags(
             "tags": all_tags,
             "members_by_supertag": members_by_supertag,
             "tag_counts": tags_module.tag_file_counts(conn),
+            "tag_colors": tags_module.TAG_COLORS,
             "error": error,
             "info": info,
         },
@@ -83,6 +77,7 @@ def list_tags_page(
             "tags": all_tags,
             "members_by_supertag": members_by_supertag,
             "tag_counts": tags_module.tag_file_counts(conn),
+            "tag_colors": tags_module.TAG_COLORS,
             "back_url": browse_url(source_id, path, q),
             "error": error,
             "info": info,
@@ -104,7 +99,7 @@ def create_tag(
             error = str(exc)
     if wants_partial(request):
         return _render_manage_tags(request, source_id, conn, error=error)
-    target = _safe_redirect(next, f"/sources/{source_id}/tags")
+    target = safe_redirect(next, f"/sources/{source_id}/tags")
     if error:
         target = with_query_param(target, "error", error)
     return RedirectResponse(url=target, status_code=303)
@@ -124,6 +119,33 @@ def rename_tag(
             )
         except ValueError as exc:
             error = str(exc)
+    if wants_partial(request):
+        return _render_manage_tags(request, source_id, conn, error=error)
+    target = f"/sources/{source_id}/tags"
+    if error:
+        target = with_query_param(target, "error", error)
+    return RedirectResponse(url=target, status_code=303)
+
+
+@router.post("/{tag_id}/description")
+def set_description(
+    request: Request, source_id: str, tag_id: int, conn: Conn, description: str = Form("")
+):
+    tags_module.set_tag_description(conn, tag_id, description.strip())
+    logger.info("tag description set source_id=%s tag_id=%s", source_id, tag_id)
+    if wants_partial(request):
+        return _render_manage_tags(request, source_id, conn)
+    return RedirectResponse(url=f"/sources/{source_id}/tags", status_code=303)
+
+
+@router.post("/{tag_id}/color")
+def set_color(request: Request, source_id: str, tag_id: int, conn: Conn, color: str = Form("")):
+    error = ""
+    try:
+        tags_module.set_tag_color(conn, tag_id, color)
+        logger.info("tag color set source_id=%s tag_id=%s color=%s", source_id, tag_id, color)
+    except ValueError as exc:
+        error = str(exc)
     if wants_partial(request):
         return _render_manage_tags(request, source_id, conn, error=error)
     target = f"/sources/{source_id}/tags"

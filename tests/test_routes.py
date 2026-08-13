@@ -97,6 +97,34 @@ def test_stylesheet_link_is_cache_busted(client: TestClient) -> None:
     assert re.search(r'/static/style\.css\?v=\d+', r.text)
 
 
+def test_settings_page_updates_theme_and_reflects_it_in_data_theme_attribute(
+    client: TestClient,
+) -> None:
+    r = client.get("/settings")
+    assert r.status_code == 200
+    assert 'value="dark"' in r.text
+    # Default is "system" -- no data-theme attribute, so only the browser's
+    # own light/dark preference (via the CSS media query) applies.
+    assert 'data-theme=' not in r.text
+
+    r = client.post("/settings", data={"theme": "dark"}, follow_redirects=False)
+    assert r.status_code == 303
+
+    r = client.get("/settings")
+    assert 'data-theme="dark"' in r.text
+    assert 'checked' in r.text
+
+    r = client.get("/sources")
+    assert 'data-theme="dark"' in r.text
+
+    r = client.post("/settings", data={"theme": "not-a-real-theme"}, follow_redirects=False)
+    assert r.status_code == 303
+    assert "error=" in r.headers["location"]
+
+    r = client.get("/settings")
+    assert 'data-theme="dark"' in r.text  # unchanged by the rejected update
+
+
 def test_scan_overlay_hidden_attribute_is_not_overridden_by_css() -> None:
     # Regression: `.scan-overlay { display: flex }` alone silently beats the
     # UA stylesheet's `[hidden] { display: none }` (author origin always

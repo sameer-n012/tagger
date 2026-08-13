@@ -18,13 +18,40 @@
   --hairline: #d3d5c9;
   --shadow: 0 1px 2px rgba(36, 38, 31, 0.06), 0 4px 16px rgba(36, 38, 31, 0.06);
 
+  /* Tag colors: 12 named swatches, independent of the --moss/--ochre/--brick
+     UI-role accents above (a tag colored "amber" shouldn't be visually
+     confused with the is-supertag indicator, which is --ochre). Each has a
+     light and dark value at the same hue -- see the dark blocks below --
+     tuned the same way as the UI accents: deeper/more saturated for
+     contrast on light paper, lighter for contrast on dark paper. */
+  --tag-rust: #8f4232;
+  --tag-amber: #9a6e2d;
+  --tag-gold: #86742d;
+  --tag-olive: #5e6d3b;
+  --tag-fern: #406a3e;
+  --tag-jade: #38705c;
+  --tag-teal: #347074;
+  --tag-azure: #3b6f97;
+  --tag-indigo: #434f9d;
+  --tag-violet: #664592;
+  --tag-orchid: #86418b;
+  --tag-rose: #9a3c62;
+
   --font-display: "Fraunces", ui-serif, Georgia, serif;
   --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 
+/* Theme resolution: bare :root above is the light palette (used whenever
+   nothing overrides it). The default "system" setting stamps no
+   data-theme attribute, so the browser's own light/dark preference is the
+   only thing that can flip the palette -- :not([data-theme="light"])
+   makes sure an explicit "light" choice still wins over a dark system
+   preference. An explicit "dark" choice is handled by the plain
+   [data-theme="dark"] block below, applying regardless of system
+   preference. See settings.html / config.py's `theme` setting. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --paper: #1b1c17;
     --paper-raised: #232420;
     --paper-sunken: #2b2c25;
@@ -35,7 +62,44 @@
     --brick: #d97b62;
     --hairline: #38392f;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.35);
+    --tag-rust: #d28d7f;
+    --tag-amber: #d6ad71;
+    --tag-gold: #cfbb6e;
+    --tag-olive: #a5b87a;
+    --tag-fern: #87b785;
+    --tag-jade: #7ebea7;
+    --tag-teal: #80c1c6;
+    --tag-azure: #89b2d1;
+    --tag-indigo: #949cd1;
+    --tag-violet: #af97ce;
+    --tag-orchid: #c790cb;
+    --tag-rose: #d189a6;
   }
+}
+
+:root[data-theme="dark"] {
+  --paper: #1b1c17;
+  --paper-raised: #232420;
+  --paper-sunken: #2b2c25;
+  --ink: #e8e7dd;
+  --ink-muted: #9a9c8c;
+  --moss: #7fa381;
+  --ochre: #d6a85a;
+  --brick: #d97b62;
+  --hairline: #38392f;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.35);
+  --tag-rust: #d28d7f;
+  --tag-amber: #d6ad71;
+  --tag-gold: #cfbb6e;
+  --tag-olive: #a5b87a;
+  --tag-fern: #87b785;
+  --tag-jade: #7ebea7;
+  --tag-teal: #80c1c6;
+  --tag-azure: #89b2d1;
+  --tag-indigo: #949cd1;
+  --tag-violet: #af97ce;
+  --tag-orchid: #c790cb;
+  --tag-rose: #d189a6;
 }
 
 * { box-sizing: border-box; }
@@ -158,6 +222,26 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus { background:
 }
 .tag-chip.is-supertag { border-left: 3px solid var(--ochre); }
 .tag-chip.is-supertag::before { border-color: var(--ochre); }
+/* --chip-color is set inline per-tag (see the `has-color` class in
+   tags.html/browse.html/_file_panel.html). A tinted background + colored
+   border read at a glance across a list, not just up close -- the dot
+   alone (below) was too subtle. The wash is a color-mix, not the solid
+   color, so chip text stays legible without per-swatch contrast math. */
+.tag-chip.has-color {
+  background: color-mix(in srgb, var(--chip-color) 16%, var(--paper-raised));
+  border-color: color-mix(in srgb, var(--chip-color) 55%, var(--hairline));
+}
+/* The ochre left-border strip is a separate "this is a supertag" signal
+   and stays regardless of tag color -- .has-color's border-color above
+   would otherwise win (same specificity, later in source) and repaint it
+   to the tag's own color too. */
+.tag-chip.is-supertag.has-color { border-left-color: var(--ochre); }
+.tag-chip.has-color::before {
+  width: 7px;
+  height: 7px;
+  background: var(--chip-color);
+  border-color: var(--chip-color);
+}
 a.tag-chip:hover { text-decoration: none; border-color: var(--moss); color: var(--moss); }
 
 .untagged-chip {
@@ -442,6 +526,12 @@ a.tag-chip:hover { text-decoration: none; border-color: var(--moss); color: var(
   border-radius: 3px;
   padding: 0.05rem 0.4rem;
 }
+.implied-tag.has-color {
+  border-left: 3px solid var(--chip-color);
+  padding-left: 0.3rem;
+  background: color-mix(in srgb, var(--chip-color) 18%, var(--paper-sunken));
+  color: var(--ink);
+}
 .add-tag-form { display: flex; gap: 0.3rem; }
 .add-tag-form input { font-size: 0.78rem; width: 8rem; }
 
@@ -509,7 +599,50 @@ dialog::backdrop { background: rgba(36, 38, 31, 0.35); }
 }
 .tag-manage-header { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 .tag-manage-header input[type="text"] { font-size: 0.8rem; }
+.tag-description-form { padding-left: 1rem; }
+.tag-description-form input[type="text"] { font-size: 0.8rem; width: 20rem; max-width: 100%; }
 .supertag-members { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; padding-left: 1rem; }
+
+.color-picker { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; padding-left: 1rem; margin: 0; }
+.color-swatch {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: none;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+  transition: transform 0.1s ease;
+}
+.color-swatch:hover { transform: scale(1.2); }
+.color-swatch:focus-visible { outline-offset: 2px; }
+.color-swatch.is-selected {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15), 0 0 0 2px var(--paper-raised), 0 0 0 3.5px var(--ink);
+}
+.color-swatch-none {
+  background: var(--paper-sunken);
+  background-image: linear-gradient(45deg, transparent 46%, var(--brick) 46% 54%, transparent 54%);
+}
+
+/* -------------------------------------------------- settings */
+
+.settings-group {
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 1rem 1.2rem 1.2rem;
+  margin: 1rem 0;
+  max-width: 24rem;
+}
+.theme-picker { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.4rem; }
+.theme-option {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.theme-option .hint { flex-basis: 100%; margin-left: 1.4rem; }
 
 /* -------------------------------------------------- scan overlay */
 

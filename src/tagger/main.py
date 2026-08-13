@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import RequestResponseEndpoint
 
 from tagger.logging_config import configure_logging
-from tagger.routes import files, sources, tags
+from tagger.routes import files, settings, sources, tags
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
 
@@ -27,6 +27,7 @@ app.mount("/static", StaticFiles(directory=str(_PACKAGE_DIR / "static")), name="
 app.include_router(sources.router)
 app.include_router(files.router)
 app.include_router(tags.router)
+app.include_router(settings.router)
 
 
 @app.middleware("http")

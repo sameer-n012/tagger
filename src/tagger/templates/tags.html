@@ -6,6 +6,9 @@
     <a class="brand" href="/sources">tagger</a>
     <span class="hint">{{ source.display_name }}</span>
     <a href="{{ back_url }}" style="margin-left:auto;">Back to files</a>
+    <a class="icon-btn"
+       href="/settings?next={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else '')) | urlencode }}"
+       title="Settings">⚙</a>
   </header>
 
   {% include "_tag_manage_page.html" %}

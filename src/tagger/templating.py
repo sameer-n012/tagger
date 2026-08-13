@@ -7,6 +7,8 @@ from typing import Any, cast
 
 from fastapi.templating import Jinja2Templates
 
+from tagger import config
+
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
@@ -20,4 +22,6 @@ def _static_version() -> str:
     return str(int((_STATIC_DIR / "style.css").stat().st_mtime))
 
 
-cast("dict[str, Any]", templates.env.globals)["static_version"] = _static_version
+_globals = cast("dict[str, Any]", templates.env.globals)
+_globals["static_version"] = _static_version
+_globals["theme"] = config.get_theme

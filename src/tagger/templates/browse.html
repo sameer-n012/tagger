@@ -31,6 +31,9 @@
     </form>
 
     <a class="icon-btn" href="/sources/{{ source.id }}/tags?path={{ path|urlencode }}&amp;q={{ q|urlencode }}" title="Manage tags">🏷</a>
+    <a class="icon-btn"
+       href="/settings?next={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else '')) | urlencode }}"
+       title="Settings">⚙</a>
   </header>
 
   <aside class="panel-left">
@@ -49,8 +52,10 @@
             {% else %}
               <span class="tag-caret-spacer"></span>
             {% endif %}
-            <a class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}"
+            <a class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %} {% if tag.color %}has-color{% endif %}"
                data-name="{{ tag.name|lower }}"
+               {% if tag.description %}title="{{ tag.description }}"{% endif %}
+               {% if tag.color %}style="--chip-color: var(--tag-{{ tag.color }});"{% endif %}
                href="/sources/{{ source.id }}/browse?q={{ tag.name }}&amp;path={{ path|urlencode }}">
               {{ tag.name }}
               <span class="tag-count">{{ tag_counts.get(tag.id, 0) }}</span>
@@ -60,7 +65,9 @@
             <ul class="implied-sublist" hidden>
               {% for member in members_by_supertag.get(tag.id, []) %}
                 <li>
-                  <a class="tag-chip" style="margin-left: 1rem;"
+                  <a class="tag-chip {% if member.color %}has-color{% endif %}"
+                     style="margin-left: 1rem; {% if member.color %}--chip-color: var(--tag-{{ member.color }});{% endif %}"
+                     {% if member.description %}title="{{ member.description }}"{% endif %}
                      href="/sources/{{ source.id }}/browse?q={{ member.name }}&amp;path={{ path|urlencode }}">{{ member.name }}</a>
                 </li>
               {% else %}

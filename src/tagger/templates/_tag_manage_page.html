@@ -38,7 +38,8 @@
     {% for tag in tags %}
       <li class="tag-manage-row" data-name="{{ tag.name|lower }}" data-count="{{ tag_counts.get(tag.id, 0) }}">
         <div class="tag-manage-header">
-          <span class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}">
+          <span class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %} {% if tag.color %}has-color{% endif %}"
+                {% if tag.color %}style="--chip-color: var(--tag-{{ tag.color }});"{% endif %}>
             {{ tag.name }}
             <span class="tag-count">{{ tag_counts.get(tag.id, 0) }}</span>
           </span>
@@ -56,11 +57,30 @@
           </form>
         </div>
 
+        <form hx-post="/sources/{{ source.id }}/tags/{{ tag.id }}/description" hx-target="#tag-manage-page"
+              hx-swap="outerHTML" class="inline-form tag-description-form">
+          <input type="text" name="description" placeholder="description…"
+                 value="{{ tag.description or '' }}" size="40">
+          <button type="submit" class="btn">Save description</button>
+        </form>
+
+        <form hx-post="/sources/{{ source.id }}/tags/{{ tag.id }}/color" hx-target="#tag-manage-page"
+              hx-swap="outerHTML" class="color-picker">
+          <button type="submit" name="color" value="" class="color-swatch color-swatch-none {% if not tag.color %}is-selected{% endif %}"
+                  title="No color" aria-label="No color"></button>
+          {% for key in tag_colors %}
+            <button type="submit" name="color" value="{{ key }}"
+                    class="color-swatch {% if tag.color == key %}is-selected{% endif %}"
+                    style="background: var(--tag-{{ key }});" title="{{ key|capitalize }}" aria-label="{{ key|capitalize }}"></button>
+          {% endfor %}
+        </form>
+
         <div class="supertag-members">
           {% if tag.id in members_by_supertag %}
             <span class="eyebrow">Implies</span>
             {% for member in members_by_supertag[tag.id] %}
-              <span class="tag-chip">
+              <span class="tag-chip {% if member.color %}has-color{% endif %}"
+                    {% if member.color %}style="--chip-color: var(--tag-{{ member.color }});"{% endif %}>
                 {{ member.name }}
                 <form hx-post="/sources/{{ source.id }}/tags/{{ tag.id }}/members/{{ member.id }}/delete"
                       hx-target="#tag-manage-page" hx-swap="outerHTML" class="inline-form">

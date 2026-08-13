@@ -34,6 +34,7 @@ class Tag:
     is_supertag: bool
     color: str | None
     created_at: str
+    description: str | None = None
 
 
 @dataclass(slots=True)
