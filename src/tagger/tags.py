@@ -226,12 +226,21 @@ def tag_file_counts(conn: sqlite3.Connection) -> dict[int, int]:
 
 
 def unused_tag_ids(conn: sqlite3.Connection) -> set[int]:
-    """Tags with zero direct file applications -- what clean_unused_tags
-    removes. Being someone else's supertag member doesn't count as used."""
-    rows = conn.execute(
-        "SELECT id FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM file_tags)"
-    ).fetchall()
-    return {row["id"] for row in rows}
+    """Tags with zero direct file applications, AND that aren't implied by
+    any supertag that itself has a direct file application -- what
+    clean_unused_tags removes.
+
+    A tag with no direct file_tags rows can still be "in use" transitively:
+    tagging a file with supertag S implies every tag in S's downward
+    closure for search purposes (see module docstring), so a member tag of
+    S must survive even though no file directly carries it."""
+    directly_used = {tag_id for tag_id, count in tag_file_counts(conn).items() if count > 0}
+    all_ids = {row["id"] for row in conn.execute("SELECT id FROM tags")}
+    unused: set[int] = set()
+    for tag_id in all_ids - directly_used:
+        if not _upward_closure(conn, tag_id) & directly_used:
+            unused.add(tag_id)
+    return unused
 
 
 def clean_unused_tags(conn: sqlite3.Connection) -> int:

@@ -60,7 +60,7 @@
             <ul class="implied-sublist" hidden>
               {% for member in members_by_supertag.get(tag.id, []) %}
                 <li>
-                  <a class="tag-chip"
+                  <a class="tag-chip" style="margin-left: 1rem;"
                      href="/sources/{{ source.id }}/browse?q={{ member.name }}&amp;path={{ path|urlencode }}">{{ member.name }}</a>
                 </li>
               {% else %}
@@ -319,6 +319,55 @@
       }
       renderSelection();
     };
+
+    function selectIndex(index) {
+      if (fileOrder[index] === undefined) return;
+      selectedIds.clear();
+      selectedIds.add(fileOrder[index]);
+      anchorIndex = index;
+      renderSelection();
+      var row = document.querySelector(
+        '#file-table-body .file-row[data-index="' + index + '"]'
+      );
+      if (row) row.scrollIntoView({ block: "nearest" });
+    }
+
+    function openSelectedFile() {
+      if (selectedIds.size !== 1) return;
+      var fileId = selectedIds.values().next().value;
+      window.open("/sources/" + sourceId + "/files/" + fileId + "/raw", "_blank", "noopener");
+    }
+
+    function navigateToParentDir() {
+      if (!currentPath) return; // already at the source root
+      var segments = currentPath.split("/");
+      segments.pop();
+      var parentPath = segments.join("/");
+      location.href = "/sources/" + sourceId + "/browse"
+        + (parentPath ? "?path=" + encodeURIComponent(parentPath) : "");
+    }
+
+    document.addEventListener("keydown", function (event) {
+      // Don't hijack typing in the search box, tag inputs, etc.
+      var active = document.activeElement;
+      var isTyping = active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName);
+      if (isTyping || selectedIds.size !== 1) return;
+
+      var currentIndex = fileOrder.indexOf(selectedIds.values().next().value);
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        selectIndex(currentIndex + 1);
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        selectIndex(currentIndex - 1);
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        navigateToParentDir();
+      } else if (event.key === "ArrowRight" || event.key === "Enter") {
+        event.preventDefault();
+        openSelectedFile();
+      }
+    });
 
     window.taggerToggleSelectAll = function (checked) {
       selectedIds.clear();

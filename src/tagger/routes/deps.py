@@ -7,7 +7,7 @@ import sqlite3
 from collections.abc import Iterator
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 
 from tagger import config, db
 
@@ -46,6 +46,13 @@ def with_query_param(url: str, key: str, value: str) -> str:
     params = dict(parse_qsl(query))
     params[key] = value
     return urlunsplit((scheme, netloc, path, urlencode(params), fragment))
+
+
+def wants_partial(request: Request) -> bool:
+    """True when the request came from htmx (see hx-* attributes) rather
+    than a plain browser navigation -- callers use this to choose between
+    returning a swappable HTML fragment and a redirect."""
+    return request.headers.get("hx-request") == "true"
 
 
 def get_conn(source_id: str) -> Iterator[sqlite3.Connection]:

@@ -47,13 +47,28 @@ def _count_files(root: Path) -> int:
     return sum(1 for path in root.rglob("*") if path.is_file())
 
 
-def walk_source(root: Path, progress_cb: ProgressCallback | None = None) -> dict[str, DiskFile]:
-    """Recursively hash every regular file under root.
+def walk_source(
+    root: Path,
+    known: dict[str, DiskFile] | None = None,
+    progress_cb: ProgressCallback | None = None,
+) -> dict[str, DiskFile]:
+    """Recursively stat every regular file under root, hashing its content
+    only when necessary.
+
+    `known` is the caller's prior belief about this source (typically the
+    DB's active files, keyed by relative path). When a file's size and
+    mtime both match its `known` entry, its content is assumed unchanged
+    and the known hash is reused instead of re-reading the file -- turning
+    a rescan into an O(changed files) content read instead of an
+    O(all files) one. This is the same size+mtime heuristic rsync/git use;
+    it can only be fooled by a file whose content changes while its size
+    and mtime both stay bit-for-bit identical.
 
     Returns a mapping of POSIX-style relative path -> DiskFile. Files that
     disappear or become unreadable mid-walk are silently skipped for this
     pass -- a subsequent rescan will pick up whatever state settles.
     """
+    known = known or {}
     total = _count_files(root) if progress_cb else 0
     result: dict[str, DiskFile] = {}
     processed = 0
@@ -62,15 +77,15 @@ def walk_source(root: Path, progress_cb: ProgressCallback | None = None) -> dict
             continue
         try:
             stat = path.stat()
-            file_hash = compute_file_hash(path)
+            rel = path.relative_to(root).as_posix()
+            mtime = datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat()
+            cached = known.get(rel)
+            if cached is not None and cached.size == stat.st_size and cached.mtime == mtime:
+                result[rel] = cached
+            else:
+                result[rel] = DiskFile(hash=compute_file_hash(path), size=stat.st_size, mtime=mtime)
         except OSError:
             continue
-        rel = path.relative_to(root).as_posix()
-        result[rel] = DiskFile(
-            hash=file_hash,
-            size=stat.st_size,
-            mtime=datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat(),
-        )
         processed += 1
         if progress_cb is not None:
             progress_cb(processed, total)
@@ -96,7 +111,11 @@ def rescan(
         else:
             db_missing[row["relative_path"]] = row
 
-    on_disk = walk_source(root, progress_cb)
+    known = {
+        path: DiskFile(hash=row["content_hash"], size=row["size_bytes"], mtime=row["mtime"])
+        for path, row in db_active.items()
+    }
+    on_disk = walk_source(root, known=known, progress_cb=progress_cb)
 
     unchanged_paths = {
         p for p, disk_file in on_disk.items()
@@ -136,6 +155,23 @@ def rescan(
         summary.moved_count += 1
         summary.moved_paths.append((old_path, new_path))
 
+    # Mark now-missing paths before inserting new rows: an in-place content
+    # edit produces the *same* relative_path in both unmatched_missing (the
+    # stale active row) and unmatched_new (the new content) within a single
+    # scan. The partial unique index only enforces uniqueness among active
+    # rows, so the old row must be flipped to 'missing' first -- inserting
+    # the new active row while it's still active would violate that index.
+    for path in unmatched_missing:
+        row = missing_candidates[path]
+        if row["status"] == FileStatus.ACTIVE.value:
+            conn.execute(
+                "UPDATE files SET status = ?, missing_since = ? WHERE id = ?",
+                (FileStatus.MISSING.value, now, row["id"]),
+            )
+            summary.missing_count += 1
+            summary.missing_paths.append(path)
+        # else: was already missing before this scan too -- no-op, still absent.
+
     for path in unmatched_new:
         disk_file = new_candidates[path]
         conn.execute(
@@ -147,17 +183,6 @@ def rescan(
         )
         summary.new_count += 1
         summary.new_paths.append(path)
-
-    for path in unmatched_missing:
-        row = missing_candidates[path]
-        if row["status"] == FileStatus.ACTIVE.value:
-            conn.execute(
-                "UPDATE files SET status = ?, missing_since = ? WHERE id = ?",
-                (FileStatus.MISSING.value, now, row["id"]),
-            )
-            summary.missing_count += 1
-            summary.missing_paths.append(path)
-        # else: was already missing before this scan too -- no-op, still absent.
 
     db.set_meta(conn, "last_scan_at", now)
     conn.commit()

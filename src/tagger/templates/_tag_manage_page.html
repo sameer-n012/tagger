@@ -1,0 +1,88 @@
+<div class="page" id="tag-manage-page">
+  <div class="eyebrow">Tags</div>
+  <h1>Manage tags &amp; supertags</h1>
+  <p class="hint">A supertag implies its members: tagging a file with a supertag also matches searches for anything it implies.</p>
+
+  {% if error %}
+    <p class="error-banner">{{ error }}</p>
+  {% endif %}
+
+  {% if info %}
+    <p class="info-banner">{{ info }}</p>
+  {% endif %}
+
+  <form hx-post="/sources/{{ source.id }}/tags" hx-target="#tag-manage-page" hx-swap="outerHTML"
+        class="stacked-form">
+    <label>
+      New tag name
+      <input type="text" name="name" required>
+    </label>
+    <button type="submit" class="btn btn-primary">Create tag</button>
+  </form>
+
+  <div class="tag-toolbar">
+    <form hx-post="/sources/{{ source.id }}/tags/clean-unused" hx-target="#tag-manage-page" hx-swap="outerHTML"
+          hx-confirm="Delete every tag with no files tagged? This can't be undone." class="inline-form">
+      <button type="submit" class="btn">Clean unused tags</button>
+    </form>
+    <form hx-post="/sources/{{ source.id }}/tags/merge-implied" hx-target="#tag-manage-page" hx-swap="outerHTML"
+          hx-confirm="Remove direct tag applications that are already implied by another tag on the same file? This can't be undone."
+          class="inline-form">
+      <button type="submit" class="btn">Merge implied tags</button>
+    </form>
+  </div>
+
+  <input type="text" class="tag-filter" placeholder="Filter tags…" oninput="taggerFilterManageTags(this.value)">
+
+  <ul class="tag-manage-list">
+    {% for tag in tags %}
+      <li class="tag-manage-row" data-name="{{ tag.name|lower }}" data-count="{{ tag_counts.get(tag.id, 0) }}">
+        <div class="tag-manage-header">
+          <span class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}">
+            {{ tag.name }}
+            <span class="tag-count">{{ tag_counts.get(tag.id, 0) }}</span>
+          </span>
+          {% if tag.is_supertag %}<span class="hint">supertag</span>{% endif %}
+
+          <form hx-post="/sources/{{ source.id }}/tags/{{ tag.id }}/rename" hx-target="#tag-manage-page"
+                hx-swap="outerHTML" class="inline-form">
+            <input type="text" name="new_name" placeholder="rename to…" size="12">
+            <button type="submit" class="btn">Rename</button>
+          </form>
+
+          <form hx-post="/sources/{{ source.id }}/tags/{{ tag.id }}/delete" hx-target="#tag-manage-page"
+                hx-swap="outerHTML" class="inline-form">
+            <button type="submit" class="btn btn-danger">Delete</button>
+          </form>
+        </div>
+
+        <div class="supertag-members">
+          {% if tag.id in members_by_supertag %}
+            <span class="eyebrow">Implies</span>
+            {% for member in members_by_supertag[tag.id] %}
+              <span class="tag-chip">
+                {{ member.name }}
+                <form hx-post="/sources/{{ source.id }}/tags/{{ tag.id }}/members/{{ member.id }}/delete"
+                      hx-target="#tag-manage-page" hx-swap="outerHTML" class="inline-form">
+                  <button type="submit" class="chip-remove" title="Remove from supertag">&times;</button>
+                </form>
+              </span>
+            {% endfor %}
+          {% endif %}
+          <form hx-post="/sources/{{ source.id }}/tags/{{ tag.id }}/members" hx-target="#tag-manage-page"
+                hx-swap="outerHTML" class="inline-form">
+            <select name="member_tag_id" required>
+              <option value="" disabled selected>add implied tag…</option>
+              {% for other in tags %}
+                {% if other.id != tag.id %}
+                  <option value="{{ other.id }}">{{ other.name }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn">Add</button>
+          </form>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+</div>

@@ -18,7 +18,13 @@ from tagger import config, scan_status
 from tagger import search as search_module
 from tagger import tags as tags_module
 from tagger.config import SourceConfig
-from tagger.routes.deps import browse_url, get_conn, get_source_or_404, with_query_param
+from tagger.routes.deps import (
+    browse_url,
+    get_conn,
+    get_source_or_404,
+    wants_partial,
+    with_query_param,
+)
 from tagger.templating import templates
 
 router = APIRouter(prefix="/sources/{source_id}", tags=["files"])
@@ -189,7 +195,12 @@ def browse(
         }
         for row in file_rows
     ]
-    all_tags = tags_module.list_tags(conn)
+    tag_counts = tags_module.tag_file_counts(conn)
+    # Most-used first for the left panel -- an alphabetical list buries the
+    # handful of tags someone actually uses among dozens of one-off ones.
+    all_tags = sorted(
+        tags_module.list_tags(conn), key=lambda tag: (-tag_counts.get(tag.id, 0), tag.name.lower())
+    )
     members_by_supertag = {
         tag.id: tags_module.direct_members(conn, tag.id) for tag in all_tags if tag.is_supertag
     }
@@ -207,7 +218,7 @@ def browse(
             "files": files_view,
             "all_tags": all_tags,
             "members_by_supertag": members_by_supertag,
-            "tag_counts": tags_module.tag_file_counts(conn),
+            "tag_counts": tag_counts,
             "missing_files": _missing_files(conn),
             "q": q,
             "search_error": search_error,
@@ -216,10 +227,6 @@ def browse(
             "back_url": browse_url(source_id, path, q),
         },
     )
-
-
-def _wants_partial(request: Request) -> bool:
-    return request.headers.get("hx-request") == "true"
 
 
 def _render_file_panel(
@@ -394,7 +401,7 @@ def add_file_tag(
             tags_module.tag_files(conn, [file_id], [tag.id])
             logger.info("tag added source_id=%s file_id=%s tag=%s", source_id, file_id, name)
 
-    if _wants_partial(request):
+    if wants_partial(request):
         return _render_file_panel(request, source, conn, file_id, path, q, error=error)
     target = browse_url(source_id, path, q)
     if error:
@@ -416,6 +423,6 @@ def remove_file_tag(
     tags_module.untag_files(conn, [file_id], [tag_id])
     logger.info("tag removed source_id=%s file_id=%s tag_id=%s", source_id, file_id, tag_id)
 
-    if _wants_partial(request):
+    if wants_partial(request):
         return _render_file_panel(request, source, conn, file_id, path, q)
     return RedirectResponse(url=browse_url(source_id, path, q), status_code=303)

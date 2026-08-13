@@ -134,6 +134,59 @@ def test_reused_path_while_old_missing_row_pending(
     assert statuses == ["active", "missing"]
 
 
+def test_in_place_content_edit_does_not_crash_rescan(
+    tmp_path: Path, conn: sqlite3.Connection
+) -> None:
+    """A file edited in place (same path, new content that doesn't
+    hash-match anything else on disk) produces that same relative_path in
+    both the unmatched-new and unmatched-missing buckets within a single
+    rescan; the old row must be flipped to missing before the new one is
+    inserted, or the partial unique index on active paths is violated."""
+    root = tmp_path / "source"
+    file_path = root / "changed.txt"
+    _write(file_path, b"before edit")
+    scanner.rescan(conn, root)
+
+    _write(file_path, b"after edit, unrelated to anything else on disk")
+    summary = scanner.rescan(conn, root)
+
+    assert summary.new_count == 1
+    assert summary.missing_count == 1
+    rows = conn.execute(
+        "SELECT status, content_hash FROM files WHERE relative_path = 'changed.txt'"
+    ).fetchall()
+    statuses = sorted(r["status"] for r in rows)
+    assert statuses == ["active", "missing"]
+
+
+def test_rescan_skips_hashing_files_whose_size_and_mtime_are_unchanged(
+    tmp_path: Path, conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rescan must not re-read file content for files it already knows
+    about (same path/size/mtime as the DB) -- only new/changed files should
+    be hashed, otherwise a rescan costs as much as the initial scan."""
+    root = tmp_path / "source"
+    _write(root / "unchanged.txt", b"stays the same")
+    _write(root / "changed.txt", b"before edit")
+    scanner.rescan(conn, root)
+
+    # Edit changed.txt's content but keep unchanged.txt untouched.
+    _write(root / "changed.txt", b"after edit, different length")
+
+    hashed_paths: list[Path] = []
+    real_hash = scanner.compute_file_hash
+
+    def _tracking_hash(path: Path) -> str:
+        hashed_paths.append(path)
+        return real_hash(path)
+
+    monkeypatch.setattr(scanner, "compute_file_hash", _tracking_hash)
+
+    scanner.rescan(conn, root)
+
+    assert hashed_paths == [root / "changed.txt"]
+
+
 def test_duplicate_hash_move_matching_is_deterministic(
     tmp_path: Path, conn: sqlite3.Connection
 ) -> None:

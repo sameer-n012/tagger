@@ -8,112 +8,42 @@
     <a href="{{ back_url }}" style="margin-left:auto;">Back to files</a>
   </header>
 
-  <div class="page">
-    <div class="eyebrow">Tags</div>
-    <h1>Manage tags &amp; supertags</h1>
-    <p class="hint">A supertag implies its members: tagging a file with a supertag also matches searches for anything it implies.</p>
-
-    {% if error %}
-      <p class="error-banner">{{ error }}</p>
-    {% endif %}
-
-    {% if info %}
-      <p class="info-banner">{{ info }}</p>
-    {% endif %}
-
-    <form method="post" action="/sources/{{ source.id }}/tags" class="stacked-form">
-      <label>
-        New tag name
-        <input type="text" name="name" required>
-      </label>
-      <button type="submit" class="btn btn-primary">Create tag</button>
-    </form>
-
-    <div class="tag-toolbar">
-      <form method="post" action="/sources/{{ source.id }}/tags/clean-unused" class="inline-form"
-            onsubmit="return confirm('Delete every tag with no files tagged? This can\'t be undone.');">
-        <button type="submit" class="btn">Clean unused tags</button>
-      </form>
-      <form method="post" action="/sources/{{ source.id }}/tags/merge-implied" class="inline-form"
-            onsubmit="return confirm('Remove direct tag applications that are already implied by another tag on the same file? This can\'t be undone.');">
-        <button type="submit" class="btn">Merge implied tags</button>
-      </form>
-    </div>
-
-    <input type="text" class="tag-filter" placeholder="Filter tags…" oninput="taggerFilterManageTags(this.value)">
-
-    <ul class="tag-manage-list">
-      {% for tag in tags %}
-        <li class="tag-manage-row" data-name="{{ tag.name|lower }}">
-          <div class="tag-manage-header">
-            <span class="tag-chip {% if tag.is_supertag %}is-supertag{% endif %}">
-              {{ tag.name }}
-              <span class="tag-count">{{ tag_counts.get(tag.id, 0) }}</span>
-            </span>
-            {% if tag.is_supertag %}<span class="hint">supertag</span>{% endif %}
-
-            <form method="post" action="/sources/{{ source.id }}/tags/{{ tag.id }}/rename" class="inline-form">
-              <input type="text" name="new_name" placeholder="rename to…" size="12">
-              <button type="submit" class="btn">Rename</button>
-            </form>
-
-            <form method="post" action="/sources/{{ source.id }}/tags/{{ tag.id }}/delete" class="inline-form">
-              <button type="submit" class="btn btn-danger">Delete</button>
-            </form>
-          </div>
-
-          <div class="supertag-members">
-            {% if tag.id in members_by_supertag %}
-              <span class="eyebrow">Implies</span>
-              {% for member in members_by_supertag[tag.id] %}
-                <span class="tag-chip">
-                  {{ member.name }}
-                  <form method="post" action="/sources/{{ source.id }}/tags/{{ tag.id }}/members/{{ member.id }}/delete" class="inline-form">
-                    <button type="submit" class="chip-remove" title="Remove from supertag">&times;</button>
-                  </form>
-                </span>
-              {% endfor %}
-            {% endif %}
-            <form method="post" action="/sources/{{ source.id }}/tags/{{ tag.id }}/members" class="inline-form">
-              <select name="member_tag_id" required>
-                <option value="" disabled selected>add implied tag…</option>
-                {% for other in tags %}
-                  {% if other.id != tag.id %}
-                    <option value="{{ other.id }}">{{ other.name }}</option>
-                  {% endif %}
-                {% endfor %}
-              </select>
-              <button type="submit" class="btn">Add</button>
-            </form>
-          </div>
-        </li>
-      {% endfor %}
-    </ul>
-  </div>
+  {% include "_tag_manage_page.html" %}
 
   <script>
+    var TAGGER_MANAGE_TAGS_LIMIT = 20;
+    var taggerManageFilterQuery = '';
+
     function taggerFilterManageTags(query) {
+      taggerManageFilterQuery = query;
       var q = query.trim().toLowerCase();
-      document.querySelectorAll('.tag-manage-list > li').forEach(function (li) {
-        li.hidden = Boolean(q) && (li.dataset.name || '').indexOf(q) === -1;
+      var rows = Array.prototype.slice.call(document.querySelectorAll('.tag-manage-list > li'));
+      var matches = rows.filter(function (li) {
+        return !q || (li.dataset.name || '').indexOf(q) !== -1;
+      });
+      // Only ever show the most-used matches -- with dozens/hundreds of
+      // tags, an unbounded list is unreadable and the rarely-used tail is
+      // rarely what someone's looking for.
+      matches.sort(function (a, b) { return Number(b.dataset.count) - Number(a.dataset.count); });
+      var shown = new Set(matches.slice(0, TAGGER_MANAGE_TAGS_LIMIT));
+      rows.forEach(function (li) {
+        li.hidden = !shown.has(li);
       });
     }
 
-    (function () {
-      // Every action on this page (rename, delete, add/remove implied tag,
-      // clean, merge) is a plain form POST -> redirect -> full page load,
-      // which otherwise resets scroll to the top every time.
-      var scrollKey = 'tagger-tags-scroll:{{ source.id }}';
-      var saved = sessionStorage.getItem(scrollKey);
-      if (saved !== null) {
-        window.scrollTo(0, parseInt(saved, 10));
-        sessionStorage.removeItem(scrollKey);
-      }
-      document.querySelectorAll('.page form').forEach(function (form) {
-        form.addEventListener('submit', function () {
-          sessionStorage.setItem(scrollKey, String(window.scrollY));
-        });
-      });
-    })();
+    taggerFilterManageTags('');
+
+    // Every mutating action on this page (rename, delete, add/remove
+    // implied tag, create, clean, merge) is an htmx request that swaps
+    // #tag-manage-page in place -- window scroll position is untouched by
+    // that (unlike the full page reload this used to be), so no
+    // scroll-preservation is needed. The filter box and its cap do need
+    // reapplying after each swap, since the server always renders the
+    // replacement list unfiltered.
+    document.body.addEventListener('htmx:afterSettle', function () {
+      var filterInput = document.querySelector('.tag-filter');
+      if (filterInput) filterInput.value = taggerManageFilterQuery;
+      taggerFilterManageTags(taggerManageFilterQuery);
+    });
   </script>
 {% endblock %}

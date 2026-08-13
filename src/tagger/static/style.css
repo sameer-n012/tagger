@@ -293,6 +293,15 @@ a.tag-chip:hover { text-decoration: none; border-color: var(--moss); color: var(
   flex-direction: column;
   gap: 0.2rem;
 }
+/* An author `display` declaration on the same element always wins over the
+   UA stylesheet's `[hidden] { display: none }` at equal specificity, since
+   the author stylesheet is later in the cascade -- without this,
+   taggerToggleSupertag's `sublist.hidden = ...` would be silently ignored
+   and every implied-tag sublist would stay visible regardless of its
+   caret's expanded state. */
+.implied-sublist[hidden] {
+  display: none;
+}
 .implied-sublist .tag-chip {
   font-size: 0.65rem;
   padding-top: 0.1rem;
@@ -491,6 +500,13 @@ dialog::backdrop { background: rgba(36, 38, 31, 0.35); }
 .inline-form { display: inline-flex; gap: 0.3rem; align-items: center; margin: 0; }
 
 .tag-manage-row { padding: 0.7rem 0.3rem; border-bottom: 1px solid var(--hairline); display: flex; flex-direction: column; gap: 0.45rem; }
+/* See .implied-sublist[hidden] above -- same cascade gotcha: the `display`
+   declaration just above wins over the UA `[hidden]` rule unless
+   overridden here, so the tag filter's `li.hidden = ...` would otherwise
+   do nothing. */
+.tag-manage-row[hidden] {
+  display: none;
+}
 .tag-manage-header { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 .tag-manage-header input[type="text"] { font-size: 0.8rem; }
 .supertag-members { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; padding-left: 1rem; }

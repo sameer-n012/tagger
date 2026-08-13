@@ -473,8 +473,8 @@ def test_manage_tags_page_shows_counts_and_clean_merge_buttons(
     r = client.get(f"/sources/{source_id}/tags")
     assert r.status_code == 200
     assert "tag-count" in r.text
-    assert f'action="/sources/{source_id}/tags/clean-unused"' in r.text
-    assert f'action="/sources/{source_id}/tags/merge-implied"' in r.text
+    assert f'hx-post="/sources/{source_id}/tags/clean-unused"' in r.text
+    assert f'hx-post="/sources/{source_id}/tags/merge-implied"' in r.text
 
     r = client.post(f"/sources/{source_id}/tags/clean-unused", follow_redirects=False)
     assert r.status_code == 303
@@ -483,6 +483,36 @@ def test_manage_tags_page_shows_counts_and_clean_merge_buttons(
     r = client.get(f"/sources/{source_id}/tags")
     assert "used" in r.text
     assert ">unused<" not in r.text
+
+
+def test_manage_tags_htmx_request_returns_partial_not_redirect(
+    client: TestClient, source_dir: Path, data_dir: Path
+) -> None:
+    """Every mutating manage-tags action swaps #tag-manage-page back in for
+    htmx requests, instead of the old full-page redirect -- this is what
+    stops the page from re-triggering every browser extension's
+    content-script injection on each click (see the memory-leak
+    investigation this replaced)."""
+    source_id = _add_source(client, source_dir)
+
+    r = client.post(
+        f"/sources/{source_id}/tags", data={"name": "vacation"}, headers={"HX-Request": "true"}
+    )
+    assert r.status_code == 200
+    assert 'id="tag-manage-page"' in r.text
+    assert "vacation" in r.text
+
+    tag_id = re.search(r'tags/(\d+)/rename', r.text)
+    assert tag_id is not None
+
+    r = client.post(
+        f"/sources/{source_id}/tags/{tag_id.group(1)}/rename",
+        data={"new_name": "untagged"},
+        headers={"HX-Request": "true"},
+    )
+    assert r.status_code == 200
+    assert 'id="tag-manage-page"' in r.text
+    assert "reserved name" in r.text
 
 
 def test_merge_implied_route_removes_redundant_direct_tag(

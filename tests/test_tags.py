@@ -149,6 +149,38 @@ def test_clean_unused_tags_removes_only_tags_with_no_files(conn: sqlite3.Connect
     assert tags.get_tag(conn, used.id) is not None
 
 
+def test_clean_unused_tags_keeps_implied_members_of_a_used_supertag(
+    conn: sqlite3.Connection,
+) -> None:
+    """A supertag t1 implies t2. A file is tagged only with t1 -- t2 has no
+    direct file_tags row, but it's still reachable via t1's implication, so
+    it must survive clean_unused_tags."""
+    t1 = tags.create_tag(conn, "t1")
+    t2 = tags.create_tag(conn, "t2")
+    tags.add_supertag_member(conn, t1.id, t2.id)
+    f1 = _make_file(conn, "a.txt")
+    tags.tag_files(conn, [f1], [t1.id])
+
+    assert tags.unused_tag_ids(conn) == set()
+    removed = tags.clean_unused_tags(conn)
+    assert removed == 0
+    assert tags.get_tag(conn, t2.id) is not None
+
+
+def test_clean_unused_tags_removes_member_of_an_unused_supertag(
+    conn: sqlite3.Connection,
+) -> None:
+    """If the supertag itself is never applied to any file, its member
+    isn't reachable through anything and should still be cleaned up."""
+    t1 = tags.create_tag(conn, "t1")
+    t2 = tags.create_tag(conn, "t2")
+    tags.add_supertag_member(conn, t1.id, t2.id)
+
+    assert tags.unused_tag_ids(conn) == {t1.id, t2.id}
+    removed = tags.clean_unused_tags(conn)
+    assert removed == 2
+
+
 def test_merge_implied_tags_drops_redundant_direct_applications(
     conn: sqlite3.Connection,
 ) -> None:
